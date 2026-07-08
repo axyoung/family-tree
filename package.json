@@ -1,0 +1,17 @@
+{
+  "name": "family-tree",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^8.1.3"
+  },
+  "dependencies": {
+    "family-chart": "^0.9.0"
+  }
+}

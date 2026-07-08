@@ -1,0 +1,171 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #f7f5f2;
+  color: #2b2620;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: #fff;
+  border-bottom: 1px solid #e5e0d8;
+}
+
+.toolbar h1 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.lineage-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.toggle-btn {
+  padding: 6px 14px;
+  border: 1px solid #c9c2b4;
+  background: #fff;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.toggle-btn.active {
+  background: #3b6e5b;
+  color: #fff;
+  border-color: #3b6e5b;
+}
+
+#FamilyChart {
+  flex: 1;
+  width: 100%;
+}
+
+/* --- Custom card contents --- */
+.card-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px;
+  text-align: center;
+}
+
+.card-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.card-identity {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.card-birthday {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.card-photos-btn {
+  margin-top: 4px;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fafafa;
+  cursor: pointer;
+}
+.card-photos-btn:hover {
+  background: #eee;
+}
+
+/* --- Gallery modal --- */
+.gallery-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.gallery-modal.hidden {
+  display: none;
+}
+
+.gallery-modal-content {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 90vw;
+  width: 700px;
+  max-height: 85vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.gallery-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  font-size: 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  line-height: 1;
+}
+
+#gallery-title {
+  margin: 0 0 4px 0;
+}
+#gallery-desc {
+  margin: 0 0 16px 0;
+  color: #555;
+  font-size: 14px;
+}
+
+.gallery-scroll {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scroll-snap-type: x mandatory;
+}
+
+.gallery-item {
+  flex: 0 0 auto;
+  width: 240px;
+  margin: 0;
+  scroll-snap-align: start;
+}
+
+.gallery-item img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+
+.gallery-item figcaption {
+  font-size: 12px;
+  color: #555;
+  margin-top: 6px;
+  text-align: center;
+}
