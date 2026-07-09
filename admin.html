@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Family Tree — Admin</title>
+</head>
+<body>
+  <div id="admin-app">
+    <header class="toolbar">
+      <h1>Pending Edits</h1>
+      <a href="/" class="admin-link">&larr; Back to tree</a>
+    </header>
+
+    <div id="login-section" class="admin-panel">
+      <h2>Admin Login</h2>
+      <form id="login-form">
+        <label>Email <input type="email" id="login-email" required /></label>
+        <label>Password <input type="password" id="login-password" required /></label>
+        <button type="submit">Log in</button>
+      </form>
+      <p id="login-error" class="error hidden"></p>
+    </div>
+
+    <div id="pending-section" class="admin-panel hidden">
+      <div class="admin-header-row">
+        <p id="pending-count"></p>
+        <button id="btn-logout">Log out</button>
+      </div>
+      <div id="pending-list"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/admin.js"></script>
+</body>
+</html>

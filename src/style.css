@@ -54,49 +54,79 @@ body {
 #FamilyChart {
   flex: 1;
   width: 100%;
+  background-color: #16181a;
+}
+
+/* The library sets link stroke via a JS-set presentation attribute (white by
+   default), but force it explicitly here too so it's never accidentally
+   invisible against whatever background color is active. */
+#FamilyChart .link {
+  stroke: #9aa0a6;
 }
 
 /* --- Custom card contents --- */
 .card-inner {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 4px;
-  text-align: center;
+  gap: 8px;
+  padding: 6px 8px;
+  text-align: left;
+  height: 100%;
+  position: relative;
+}
+
+.card-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+}
+.card-avatar-placeholder {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
 }
 
 .card-name {
   font-weight: 600;
   font-size: 13px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .card-identity {
   font-size: 11px;
-  opacity: 0.75;
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .card-birthday {
   font-size: 11px;
-  opacity: 0.6;
+  color: rgba(255, 255, 255, 0.6);
 }
 
-.card-photos-btn {
-  margin-top: 4px;
+.card-edit-btn {
+  position: absolute;
+  top: 2px;
+  right: 2px;
   font-size: 11px;
-  padding: 2px 8px;
+  padding: 2px 6px;
   border-radius: 6px;
-  border: 1px solid #ccc;
-  background: #fafafa;
+  border: none;
+  background: rgba(255, 255, 255, 0.85);
   cursor: pointer;
 }
-.card-photos-btn:hover {
-  background: #eee;
-}
 
-/* --- Gallery modal --- */
-.gallery-modal {
+/* --- Generic centered modal (used by the add/edit person form) --- */
+.modal {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
@@ -105,11 +135,11 @@ body {
   justify-content: center;
   z-index: 1000;
 }
-.gallery-modal.hidden {
+.modal.hidden {
   display: none;
 }
 
-.gallery-modal-content {
+.modal-content {
   background: #fff;
   border-radius: 12px;
   padding: 24px;
@@ -120,7 +150,7 @@ body {
   position: relative;
 }
 
-.gallery-close {
+.modal-close {
   position: absolute;
   top: 12px;
   right: 16px;
@@ -131,13 +161,74 @@ body {
   line-height: 1;
 }
 
-#gallery-title {
+/* --- Person detail side panel --- */
+.side-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 999;
+}
+.side-panel-backdrop.hidden {
+  display: none;
+}
+
+.side-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 380px;
+  max-width: 90vw;
+  background: #fff;
+  z-index: 1000;
+  padding: 24px;
+  overflow-y: auto;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
+  transform: translateX(100%);
+  transition: transform 0.25s ease-in-out;
+}
+.side-panel.open {
+  transform: translateX(0);
+}
+.side-panel.hidden {
+  display: none;
+}
+
+.side-panel-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  font-size: 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.side-panel-avatar {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  margin: 0 0 12px 0;
+}
+.side-panel-avatar.hidden {
+  display: none;
+}
+
+#side-panel-title {
   margin: 0 0 4px 0;
 }
-#gallery-desc {
-  margin: 0 0 16px 0;
-  color: #555;
+.side-panel-meta {
+  margin: 2px 0;
+  color: #666;
+  font-size: 13px;
+}
+#side-panel-desc {
+  margin: 12px 0 20px 0;
   font-size: 14px;
+  line-height: 1.5;
 }
 
 .gallery-scroll {
@@ -168,4 +259,261 @@ body {
   color: #555;
   margin-top: 6px;
   text-align: center;
+}
+
+/* --- Toolbar additions --- */
+.toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.edit-mode-btn,
+.add-person-btn {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid #3b6e5b;
+  background: #fff;
+  color: #3b6e5b;
+  cursor: pointer;
+  font-size: 13px;
+}
+.edit-mode-btn:hover,
+.add-person-btn:hover {
+  background: #eef5f1;
+}
+
+.admin-link {
+  font-size: 12px;
+  color: #888;
+  text-decoration: none;
+}
+.admin-link:hover {
+  text-decoration: underline;
+}
+
+.status-banner {
+  margin: 0;
+  padding: 8px 20px;
+  background: #eef5f1;
+  color: #235643;
+  font-size: 13px;
+  text-align: center;
+}
+.status-banner.status-error {
+  background: #fbeaea;
+  color: #8a2323;
+}
+
+/* card-edit-btn styling lives near the card-inner rules above */
+
+/* --- Edit / Add person form --- */
+#edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+#edit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+}
+#edit-form input[type="text"],
+#edit-form input[type="email"],
+#edit-form input[type="password"],
+#edit-form select,
+#edit-form textarea {
+  font-weight: normal;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.relation-fields {
+  display: flex;
+  gap: 12px;
+  background: #f7f5f2;
+  padding: 12px;
+  border-radius: 8px;
+}
+.relation-fields label {
+  flex: 1;
+}
+
+.photo-field {
+  border-top: 1px solid #eee;
+  padding-top: 12px;
+}
+
+.existing-photos,
+.staged-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.existing-photo {
+  position: relative;
+  width: 90px;
+}
+.existing-photo img {
+  width: 90px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+}
+.existing-photo .remove-photo-btn {
+  width: 100%;
+  font-size: 10px;
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.staged-photo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 140px;
+  font-size: 11px;
+  background: #fafafa;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 6px;
+}
+.staged-caption-input {
+  font-size: 11px;
+  padding: 4px 6px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.form-actions button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  background: #3b6e5b;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+.form-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* --- Admin page --- */
+#admin-app {
+  max-width: 700px;
+  margin: 0 auto;
+  padding-bottom: 60px;
+}
+
+.admin-panel {
+  background: #fff;
+  margin: 20px;
+  padding: 20px;
+  border-radius: 10px;
+  border: 1px solid #e5e0d8;
+}
+
+.admin-panel form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 320px;
+}
+.admin-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.admin-panel input {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+.admin-panel button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: #3b6e5b;
+  color: #fff;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.error {
+  color: #8a2323;
+  font-size: 13px;
+}
+
+.admin-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.pending-card {
+  border: 1px solid #e5e0d8;
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.pending-card h3 {
+  margin: 0 0 6px 0;
+}
+.pending-card p {
+  margin: 4px 0;
+  font-size: 13px;
+}
+.submitted-meta {
+  color: #888;
+  font-size: 12px;
+}
+
+.pending-photo-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.pending-photo-strip img {
+  width: 70px;
+  height: 70px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.pending-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+.pending-actions button {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.approve-btn {
+  background: #3b6e5b;
+  color: #fff;
+}
+.reject-btn {
+  background: #eee;
+  color: #8a2323;
 }

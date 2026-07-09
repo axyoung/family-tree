@@ -3,31 +3,96 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Our Family Tree</title>
+  <title>Shan Young Family Tree</title>
 </head>
 <body>
   <div id="app">
     <header class="toolbar">
-      <h1>Our Family Tree</h1>
+      <h1>Shan Young Family Tree</h1>
 
-      <!-- Lineage toggle: switches which parent set is rendered for people
-           who have both a biological and an adoptive lineage recorded -->
-      <div class="lineage-toggle">
-        <span>View lineage:</span>
-        <button id="btn-bio" class="toggle-btn active" data-mode="bio">Biological</button>
-        <button id="btn-adoptive" class="toggle-btn" data-mode="adoptive">Adoptive</button>
+      <div class="toolbar-controls">
+        <!-- Lineage toggle: switches which parent set is rendered for people
+             who have both a biological and an adoptive lineage recorded -->
+        <div class="lineage-toggle">
+          <span>View lineage:</span>
+          <button id="btn-bio" class="toggle-btn active" data-mode="bio">Biological</button>
+          <button id="btn-adoptive" class="toggle-btn" data-mode="adoptive">Adoptive</button>
+        </div>
+
+        <button id="btn-edit-mode" class="edit-mode-btn">Edit mode: Off</button>
+        <button id="btn-add-person" class="add-person-btn hidden">+ Add Person</button>
+        <a href="/admin.html" class="admin-link">Admin</a>
       </div>
     </header>
 
+    <p id="status-banner" class="status-banner hidden"></p>
+
     <div id="FamilyChart" class="f3"></div>
 
-    <!-- Photo gallery modal, opened from the custom card's "View Photos" button -->
-    <div id="gallery-modal" class="gallery-modal hidden">
-      <div class="gallery-modal-content">
-        <button id="gallery-close" class="gallery-close">&times;</button>
-        <h2 id="gallery-title"></h2>
-        <p id="gallery-desc"></p>
-        <div class="gallery-scroll" id="gallery-scroll"></div>
+    <!-- Person detail side panel — opens when a card is clicked -->
+    <div id="side-panel" class="side-panel hidden">
+      <button id="side-panel-close" class="side-panel-close">&times;</button>
+      <img id="side-panel-avatar" class="side-panel-avatar hidden" alt="" />
+      <h2 id="side-panel-title"></h2>
+      <p id="side-panel-identity" class="side-panel-meta"></p>
+      <p id="side-panel-birthday" class="side-panel-meta"></p>
+      <p id="side-panel-desc"></p>
+      <div class="gallery-scroll" id="side-panel-photos"></div>
+    </div>
+    <div id="side-panel-backdrop" class="side-panel-backdrop hidden"></div>
+
+    <!-- Add / Edit person modal -->
+    <div id="edit-modal" class="modal hidden">
+      <div class="modal-content">
+        <button id="edit-close" class="modal-close">&times;</button>
+        <h2 id="edit-modal-title">Edit Person</h2>
+        <form id="edit-form">
+          <div id="relation-fields" class="relation-fields">
+            <label>Relation to existing person
+              <select id="field-relation-type">
+                <option value="child">Child of</option>
+                <option value="parent">Parent of</option>
+                <option value="spouse">Spouse of</option>
+              </select>
+            </label>
+            <label>Existing person
+              <select id="field-relation-to">
+                <option value="">— No relation (standalone / first person) —</option>
+              </select>
+            </label>
+          </div>
+
+          <label>First name <input type="text" id="field-first-name" required /></label>
+          <label>Last name <input type="text" id="field-last-name" /></label>
+          <label>Birthday <input type="text" id="field-birthday" placeholder="e.g. 1985 or 1985-04-02" /></label>
+          <label>Gender (for layout only)
+            <select id="field-gender">
+              <option value="M">M</option>
+              <option value="F">F</option>
+            </select>
+          </label>
+          <label>Gender identity (shown on card) <input type="text" id="field-gender-identity" placeholder="e.g. Woman, Man, Non-binary" /></label>
+          <label>Description <textarea id="field-description" rows="3"></textarea></label>
+
+          <div class="photo-field">
+            <label>Avatar photo (shown on the card)
+              <input type="file" id="field-avatar" accept="image/*" />
+            </label>
+            <div id="existing-avatar" class="existing-photos"></div>
+          </div>
+
+          <div class="photo-field">
+            <label>Add gallery photos <input type="file" id="field-photos" accept="image/*" multiple /></label>
+            <div id="existing-photos" class="existing-photos"></div>
+            <div id="staged-photos" class="staged-photos"></div>
+          </div>
+
+          <label>Your name (optional, so the admin knows who submitted this) <input type="text" id="field-submitted-by" /></label>
+
+          <div class="form-actions">
+            <button type="submit" id="edit-submit-btn">Submit for approval</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

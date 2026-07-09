@@ -1,39 +1,56 @@
 import * as f3 from "family-chart";
 import "family-chart/styles/family-chart.css";
 import "./style.css";
-import { familyData } from "./data.js";
+import { supabase } from "./supabaseClient.js";
+import { requestEditAccess } from "./editSession.js";
+import { openEditForm } from "./editForm.js";
 
 // ---------------------------------------------------------------------------
-// 1. LINEAGE TOGGLE — decide which parent set to render
+// STATE
 // ---------------------------------------------------------------------------
-// family-chart's own `rels.parents` field is what actually gets drawn. We
-// don't touch data.js directly — instead, every time the toggle changes, we
-// build a fresh copy of the dataset where `rels.parents` is filled in from
-// either `parents_bio` or `parents_adoptive`, whichever is selected.
-let currentMode = "bio"; // "bio" | "adoptive"
+let familyData = []; // loaded from Supabase on init
+let currentLineageMode = "bio"; // "bio" | "adoptive"
+let editModeEnabled = false;
+let f3Chart = null;
+let f3Card = null;
 
+const statusBanner = document.getElementById("status-banner");
+function showStatus(message, isError = false) {
+  statusBanner.textContent = message;
+  statusBanner.classList.remove("hidden");
+  statusBanner.classList.toggle("status-error", isError);
+  if (!isError) {
+    setTimeout(() => statusBanner.classList.add("hidden"), 4000);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 1. LOAD DATA FROM SUPABASE
+// ---------------------------------------------------------------------------
+async function loadFamilyData() {
+  const { data, error } = await supabase.from("people").select("id, data, rels");
+  if (error) {
+    showStatus(`Failed to load family data: ${error.message}`, true);
+    return [];
+  }
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// 2. LINEAGE TOGGLE — decide which parent set to render
+// ---------------------------------------------------------------------------
 function buildTreeData(mode) {
-  // Clone everything up front so we can freely rewrite both sides of each
-  // relationship (child -> parents AND parent -> children) without
-  // mutating the original familyData.
   const clones = familyData.map((person) => structuredClone(person));
   const byId = new Map(clones.map((person) => [person.id, person]));
 
   clones.forEach((person) => {
     const bio = person.data.parents_bio;
     const adoptive = person.data.parents_adoptive;
-
-    // People without dual-lineage fields (e.g. the grandparents) keep
-    // whatever rels.parents they already had — nothing to do here.
     if (!bio?.length && !adoptive?.length) return;
 
     const active = mode === "adoptive" && adoptive?.length ? adoptive : bio || [];
     const allMentionedParentIds = new Set([...(bio || []), ...(adoptive || [])]);
 
-    // For every parent NOT in the active set, remove this person from
-    // that parent's `children` array — otherwise the library sees the
-    // child claimed by parents on both sides at once and throws
-    // "child has more than 1 parent".
     allMentionedParentIds.forEach((parentId) => {
       if (active.includes(parentId)) return;
       const parentNode = byId.get(parentId);
@@ -50,72 +67,94 @@ function buildTreeData(mode) {
   return clones;
 }
 
-// ---------------------------------------------------------------------------
-// 2. CREATE THE CHART
-// ---------------------------------------------------------------------------
-const f3Chart = f3.createChart("#FamilyChart", buildTreeData(currentMode));
+function rerenderTree() {
+  f3Chart.updateData(buildTreeData(currentLineageMode));
+  f3Chart.updateTree({ initial: true });
+}
 
-const f3Card = f3Chart
-  .setCardHtml()
-  .setCardDisplay([["first name", "last name"]])
-  // Custom inner HTML for every card. This is where gender_identity gets
-  // shown instead of the raw M/F, and where the "View Photos" button lives.
-  .setCardInnerHtmlCreator((d) => {
-    // `d` is the D3 tree node; the actual person fields we stored in
-    // data.js live at d.data.data. If you find fields aren't lining up
-    // once this is running in the browser, console.log(d) here to confirm
-    // the exact shape — the library's nesting isn't fully documented.
-    const person = d.data?.data || {};
-    const id = d.data?.id;
-    const name = `${person["first name"] || ""} ${person["last name"] || ""}`.trim();
-    const identity = person.gender_identity || "";
-    const photoCount = person.photos?.length || 0;
+// ---------------------------------------------------------------------------
+// 3. CHART SETUP
+// ---------------------------------------------------------------------------
+async function init() {
+  familyData = await loadFamilyData();
 
-    return `
-      <div class="card-inner">
-        <div class="card-name">${name}</div>
-        ${identity ? `<div class="card-identity">${identity}</div>` : ""}
-        ${person.birthday ? `<div class="card-birthday">${person.birthday}</div>` : ""}
-        ${
-          photoCount > 0
-            ? `<button class="card-photos-btn" data-person-id="${id}">📷 ${photoCount} photo${photoCount > 1 ? "s" : ""}</button>`
-            : ""
-        }
-      </div>
-    `;
+  f3Chart = f3.createChart("#FamilyChart", buildTreeData(currentLineageMode));
+
+  f3Card = f3Chart
+    .setCardHtml()
+    .setCardDim({ width: 240, height: 100 })
+    .setCardDisplay([["first name", "last name"]])
+    .setCardInnerHtmlCreator((d) => {
+      const person = d.data?.data || {};
+      const identity = person.gender_identity || "";
+
+      return `
+        <div class="card-inner">
+          ${
+            person.avatar
+              ? `<img class="card-avatar" src="${person.avatar}" alt="" />`
+              : `<div class="card-avatar card-avatar-placeholder"></div>`
+          }
+          <div class="card-text">
+            <div class="card-name">${person["first name"] || ""} ${person["last name"] || ""}</div>
+            ${identity ? `<div class="card-identity">${identity}</div>` : ""}
+            ${person.birthday ? `<div class="card-birthday">${person.birthday}</div>` : ""}
+          </div>
+          ${editModeEnabled ? `<button class="card-edit-btn" data-person-id="${d.data?.id}">✏️</button>` : ""}
+        </div>
+      `;
+    });
+
+  f3Card.setOnCardClick((e, d) => {
+    const editBtn = e.target.closest(".card-edit-btn");
+    if (editBtn) {
+      e.stopPropagation();
+      const person = familyData.find((p) => p.id === editBtn.dataset.personId);
+      openEditForm({
+        mode: "update",
+        person,
+        onSubmitted: () => showStatus("Submitted for approval — an admin will review it soon."),
+      });
+      return;
+    }
+    // Keep the library's default behavior (re-centers the tree on this
+    // person, revealing their relatives) AND open our detail side panel.
+    f3Card.onCardClickDefault(e, d);
+    openSidePanel(d.data?.id);
   });
 
-// Keep the library's default click behavior (expand/collapse the tree),
-// but ALSO listen for clicks on our custom "View Photos" button and open
-// the gallery modal instead of letting the click bubble into the default handler.
-f3Card.setOnCardClick((e, d) => {
-  const btn = e.target.closest(".card-photos-btn");
-  if (btn) {
-    e.stopPropagation();
-    openGallery(btn.dataset.personId);
-    return;
-  }
-  f3Card.onCardClickDefault(e, d); // fall back to normal expand/collapse
-});
-
-f3Chart.updateTree({ initial: true });
+  f3Chart.updateTree({ initial: true });
+}
 
 // ---------------------------------------------------------------------------
-// 3. PHOTO GALLERY MODAL
+// 4. PERSON DETAIL SIDE PANEL
 // ---------------------------------------------------------------------------
-const modal = document.getElementById("gallery-modal");
-const galleryScroll = document.getElementById("gallery-scroll");
-const galleryTitle = document.getElementById("gallery-title");
-const galleryDesc = document.getElementById("gallery-desc");
+const sidePanel = document.getElementById("side-panel");
+const sidePanelBackdrop = document.getElementById("side-panel-backdrop");
+const sidePanelAvatar = document.getElementById("side-panel-avatar");
+const sidePanelTitle = document.getElementById("side-panel-title");
+const sidePanelIdentity = document.getElementById("side-panel-identity");
+const sidePanelBirthday = document.getElementById("side-panel-birthday");
+const sidePanelDesc = document.getElementById("side-panel-desc");
+const sidePanelPhotos = document.getElementById("side-panel-photos");
 
-function openGallery(personId) {
+function openSidePanel(personId) {
   const person = familyData.find((p) => p.id === personId)?.data;
   if (!person) return;
 
-  galleryTitle.textContent = `${person["first name"]} ${person["last name"]}`;
-  galleryDesc.textContent = person.description || "";
+  if (person.avatar) {
+    sidePanelAvatar.src = person.avatar;
+    sidePanelAvatar.classList.remove("hidden");
+  } else {
+    sidePanelAvatar.classList.add("hidden");
+  }
 
-  galleryScroll.innerHTML = (person.photos || [])
+  sidePanelTitle.textContent = `${person["first name"] || ""} ${person["last name"] || ""}`.trim();
+  sidePanelIdentity.textContent = person.gender_identity || "";
+  sidePanelBirthday.textContent = person.birthday || "";
+  sidePanelDesc.textContent = person.description || "";
+
+  sidePanelPhotos.innerHTML = (person.photos || [])
     .map(
       (photo) => `
         <figure class="gallery-item">
@@ -126,27 +165,67 @@ function openGallery(personId) {
     )
     .join("");
 
-  modal.classList.remove("hidden");
+  sidePanel.classList.remove("hidden");
+  sidePanelBackdrop.classList.remove("hidden");
+  requestAnimationFrame(() => sidePanel.classList.add("open"));
 }
 
-document.getElementById("gallery-close").addEventListener("click", () => {
-  modal.classList.add("hidden");
-});
-modal.addEventListener("click", (e) => {
-  if (e.target === modal) modal.classList.add("hidden"); // click outside content closes it
-});
+function closeSidePanel() {
+  sidePanel.classList.remove("open");
+  sidePanelBackdrop.classList.add("hidden");
+  setTimeout(() => sidePanel.classList.add("hidden"), 250);
+}
+
+document.getElementById("side-panel-close").addEventListener("click", closeSidePanel);
+sidePanelBackdrop.addEventListener("click", closeSidePanel);
 
 // ---------------------------------------------------------------------------
-// 4. TOGGLE BUTTON WIRING
+// 5. LINEAGE TOGGLE BUTTON WIRING
 // ---------------------------------------------------------------------------
-document.getElementById("btn-bio").addEventListener("click", () => switchMode("bio"));
-document.getElementById("btn-adoptive").addEventListener("click", () => switchMode("adoptive"));
+document.getElementById("btn-bio").addEventListener("click", () => switchLineageMode("bio"));
+document.getElementById("btn-adoptive").addEventListener("click", () => switchLineageMode("adoptive"));
 
-function switchMode(mode) {
-  currentMode = mode;
+function switchLineageMode(mode) {
+  currentLineageMode = mode;
   document.getElementById("btn-bio").classList.toggle("active", mode === "bio");
   document.getElementById("btn-adoptive").classList.toggle("active", mode === "adoptive");
-
-  f3Chart.updateData(buildTreeData(mode));
-  f3Chart.updateTree({ initial: true });
+  rerenderTree();
 }
+
+// ---------------------------------------------------------------------------
+// 6. EDIT MODE GATE + ADD PERSON BUTTON
+// ---------------------------------------------------------------------------
+const editModeBtn = document.getElementById("btn-edit-mode");
+const addPersonBtn = document.getElementById("btn-add-person");
+
+editModeBtn.addEventListener("click", async () => {
+  if (editModeEnabled) {
+    editModeEnabled = false;
+    editModeBtn.textContent = "Edit mode: Off";
+    addPersonBtn.classList.add("hidden");
+    rerenderTree();
+    return;
+  }
+
+  const password = await requestEditAccess();
+  if (!password) return; // user cancelled the password prompt
+
+  // We don't actually validate the password here — the server-side RPC
+  // validates it on the first real submission. Entering edit mode just
+  // reveals the edit buttons; a wrong password will simply fail later
+  // with a clear error when they try to submit something.
+  editModeEnabled = true;
+  editModeBtn.textContent = "Edit mode: On";
+  addPersonBtn.classList.remove("hidden");
+  rerenderTree();
+});
+
+addPersonBtn.addEventListener("click", () => {
+  openEditForm({
+    mode: "add",
+    peopleList: familyData,
+    onSubmitted: () => showStatus("Submitted for approval — an admin will review it soon."),
+  });
+});
+
+init();
