@@ -1,3 +1,7 @@
+.hidden {
+  display: none !important;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -5,7 +9,7 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  background: #f7f5f2;
+  background: #16181a;
   color: #2b2620;
 }
 
@@ -20,13 +24,14 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  background: #fff;
-  border-bottom: 1px solid #e5e0d8;
+  background: #202225;
+  border-bottom: 1px solid #333;
 }
 
 .toolbar h1 {
   font-size: 18px;
   margin: 0;
+  color: #eee;
 }
 
 .lineage-toggle {
@@ -34,12 +39,14 @@ body {
   align-items: center;
   gap: 8px;
   font-size: 14px;
+  color: #ccc;
 }
 
 .toggle-btn {
   padding: 6px 14px;
-  border: 1px solid #c9c2b4;
-  background: #fff;
+  border: 1px solid #555;
+  background: #2a2d31;
+  color: #ccc;
   border-radius: 999px;
   cursor: pointer;
   font-size: 13px;
@@ -49,6 +56,30 @@ body {
   background: #3b6e5b;
   color: #fff;
   border-color: #3b6e5b;
+}
+
+.edit-mode-btn,
+.add-person-btn {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid #3b6e5b;
+  background: #2a2d31;
+  color: #7fbfa4;
+  cursor: pointer;
+  font-size: 13px;
+}
+.edit-mode-btn:hover,
+.add-person-btn:hover {
+  background: #333;
+}
+
+.admin-link {
+  font-size: 12px;
+  color: #999;
+  text-decoration: none;
+}
+.admin-link:hover {
+  text-decoration: underline;
 }
 
 #FamilyChart {
@@ -267,30 +298,6 @@ body {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-}
-
-.edit-mode-btn,
-.add-person-btn {
-  padding: 6px 14px;
-  border-radius: 999px;
-  border: 1px solid #3b6e5b;
-  background: #fff;
-  color: #3b6e5b;
-  cursor: pointer;
-  font-size: 13px;
-}
-.edit-mode-btn:hover,
-.add-person-btn:hover {
-  background: #eef5f1;
-}
-
-.admin-link {
-  font-size: 12px;
-  color: #888;
-  text-decoration: none;
-}
-.admin-link:hover {
-  text-decoration: underline;
 }
 
 .status-banner {

@@ -33,7 +33,14 @@ async function loadFamilyData() {
     showStatus(`Failed to load family data: ${error.message}`, true);
     return [];
   }
-  return data;
+  return (data || []).map((person) => ({
+    ...person,
+    rels: {
+      spouses: person.rels?.spouses || [],
+      children: person.rels?.children || [],
+      parents: person.rels?.parents || [],
+    },
+  }));
 }
 
 // ---------------------------------------------------------------------------

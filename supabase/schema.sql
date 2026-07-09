@@ -137,6 +137,7 @@ declare
   e record;
   existing_rels jsonb;
   field_name text;
+  reciprocal_field text;
 begin
   select * into e from pending_edits where id = p_edit_id and status = 'pending';
   if not found then
@@ -160,9 +161,18 @@ begin
     values (e.person_id, e.payload->'data', e.payload->'rels');
 
     if e.relation_to_id is not null then
+      -- field on the EXISTING person that should list the new person
       field_name := case e.relation_type
         when 'child' then 'children'
         when 'parent' then 'parents'
+        when 'spouse' then 'spouses'
+        else null
+      end;
+      -- field on the NEW person that should list the existing person
+      -- (the other direction — this is what was missing before)
+      reciprocal_field := case e.relation_type
+        when 'child' then 'parents'
+        when 'parent' then 'children'
         when 'spouse' then 'spouses'
         else null
       end;
@@ -176,6 +186,15 @@ begin
           (coalesce(existing_rels->field_name, '[]'::jsonb) || to_jsonb(e.person_id::text))
         )
         where id = e.relation_to_id;
+
+        select rels into existing_rels from people where id = e.person_id;
+        update people
+        set rels = jsonb_set(
+          existing_rels,
+          array[reciprocal_field],
+          (coalesce(existing_rels->reciprocal_field, '[]'::jsonb) || to_jsonb(e.relation_to_id::text))
+        )
+        where id = e.person_id;
       end if;
     end if;
   end if;
@@ -219,6 +238,52 @@ using (bucket_id = 'family-photos');
 -- only submitting a pending edit is. This is an intentional MVP trade-off
 -- (see project notes) since a stray uploaded file with nothing pointing to
 -- it doesn't accomplish much on its own.
+
+-- ---------------------------------------------------------------------------
+-- 9. REPAIR EXISTING ONE-SIDED RELATIONSHIPS
+-- ---------------------------------------------------------------------------
+-- Fixes any person already in the table whose relationship only exists in
+-- one direction (e.g. a parent lists a child, but that child doesn't list
+-- the parent back) — the exact bug that caused "child has more than 1
+-- parent" crashes. Safe to re-run any time.
+create or replace function repair_reciprocal_rels()
+returns void
+language plpgsql
+security definer
+as $$
+declare
+  p record;
+  other_id text;
+  other_rels jsonb;
+begin
+  for p in select id, rels from people loop
+    for other_id in select jsonb_array_elements_text(coalesce(p.rels->'children', '[]'::jsonb)) loop
+      select rels into other_rels from people where id = other_id;
+      if other_rels is not null and not (coalesce(other_rels->'parents','[]'::jsonb) ? p.id) then
+        update people set rels = jsonb_set(rels, '{parents}', coalesce(rels->'parents','[]'::jsonb) || to_jsonb(p.id))
+        where id = other_id;
+      end if;
+    end loop;
+
+    for other_id in select jsonb_array_elements_text(coalesce(p.rels->'parents', '[]'::jsonb)) loop
+      select rels into other_rels from people where id = other_id;
+      if other_rels is not null and not (coalesce(other_rels->'children','[]'::jsonb) ? p.id) then
+        update people set rels = jsonb_set(rels, '{children}', coalesce(rels->'children','[]'::jsonb) || to_jsonb(p.id))
+        where id = other_id;
+      end if;
+    end loop;
+
+    for other_id in select jsonb_array_elements_text(coalesce(p.rels->'spouses', '[]'::jsonb)) loop
+      select rels into other_rels from people where id = other_id;
+      if other_rels is not null and not (coalesce(other_rels->'spouses','[]'::jsonb) ? p.id) then
+        update people set rels = jsonb_set(rels, '{spouses}', coalesce(rels->'spouses','[]'::jsonb) || to_jsonb(p.id))
+        where id = other_id;
+      end if;
+    end loop;
+  end loop;
+end;
+$$;
+grant execute on function repair_reciprocal_rels to authenticated;
 
 -- ===========================================================================
 -- NEXT STEPS (do these in the Supabase dashboard, not this SQL file):

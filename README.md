@@ -6,6 +6,15 @@ Built with performance, privacy, and seamless interactivity in mind, the platfor
 
 ---
 
+## TO IMPLEMENT:
+* image compression to save storage space
+* ability to delete someone
+* work on adopt/step parent
+* initial view needs to show entire tree, need button to reset to see entire tree
+* make it so in order to view the family tree you need password
+
+---
+
 ## ✨ Features
 
 * **Interactive Lineage Visualization:** Powered by `family-chart`, offering smooth panning, zooming, and dynamic expansion/collapsing of family branches.
@@ -50,7 +59,7 @@ Ensure you have the following installed on your local environment:
    ```bash
    npm run dev
    ```
-   
+
 ## 🛡️ Privacy & Governance
 
 Because this registry contains living individuals and private family data, all contributors must respect the following security practices:

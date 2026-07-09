@@ -24,6 +24,7 @@ const submitBtn = document.getElementById("edit-submit-btn");
 // --- module-level state for whichever form instance is currently open ---
 let currentMode = "add"; // "add" | "update"
 let currentPersonId = null;
+let currentPersonData = null; // original data.js-style data object; merged into on submit
 let currentPersonRels = null; // preserved as-is; this form doesn't edit relationships
 let existingPhotos = [];
 let stagedFiles = []; // [{ file, caption }]
@@ -40,6 +41,7 @@ let stagedAvatarFile = null; // File | null — replaces existingAvatarUrl on su
 export function openEditForm({ mode, person = null, peopleList = [], onSubmitted }) {
   currentMode = mode;
   currentPersonId = person?.id || null;
+  currentPersonData = person?.data || {};
   currentPersonRels = person?.rels || { spouses: [], children: [], parents: [] };
   existingPhotos = person?.data?.photos ? [...person.data.photos] : [];
   stagedFiles = [];
@@ -215,6 +217,7 @@ async function handleSubmit(onSubmitted) {
     }
 
     const data = {
+      ...currentPersonData,
       "first name": firstNameInput.value.trim(),
       "last name": lastNameInput.value.trim(),
       birthday: birthdayInput.value.trim(),
