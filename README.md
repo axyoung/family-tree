@@ -7,11 +7,13 @@ Built with performance, privacy, and seamless interactivity in mind, the platfor
 ---
 
 ## TO IMPLEMENT:
-* image compression to save storage space
-* ability to delete someone
-* work on adopt/step parent
-* initial view needs to show entire tree, need button to reset to see entire tree
-* make it so in order to view the family tree you need password
+* make it so the only edits that need to be admin reviewed is if you delete someone
+* make it so the popout is larger and is actually part of the screen, so it shifts stuff over and you can still click around
+* make it so the description section you can add markdown
+* ask for some tests to do so i can verify all logic
+* verify the child of relationship vs the bio parent stuff when adding a person
+* make it so if you are logged in admin you can enter edit mode without password
+* create an indicator to show that there are more nodes connected to the leaf nodes with hidden relatives (example here https://donatso.github.io/family-chart-doc/examples/v2/6-svg-cards)
 
 ---
 

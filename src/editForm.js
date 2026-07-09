@@ -4,9 +4,13 @@ import { submitPendingEdit } from "./editSession.js";
 const modal = document.getElementById("edit-modal");
 const form = document.getElementById("edit-form");
 const titleEl = document.getElementById("edit-modal-title");
-const relationFields = document.getElementById("relation-fields");
-const relationTypeSel = document.getElementById("field-relation-type");
-const relationToSel = document.getElementById("field-relation-to");
+const relationSection = document.getElementById("relation-fields");
+const relationsListEl = document.getElementById("relations-list");
+const addRelationRowBtn = document.getElementById("add-relation-row-btn");
+const bioParent1Sel = document.getElementById("field-bio-parent-1");
+const bioParent2Sel = document.getElementById("field-bio-parent-2");
+const adoptiveParent1Sel = document.getElementById("field-adoptive-parent-1");
+const adoptiveParent2Sel = document.getElementById("field-adoptive-parent-2");
 const firstNameInput = document.getElementById("field-first-name");
 const lastNameInput = document.getElementById("field-last-name");
 const birthdayInput = document.getElementById("field-birthday");
@@ -20,25 +24,29 @@ const avatarInput = document.getElementById("field-avatar");
 const existingAvatarEl = document.getElementById("existing-avatar");
 const submittedByInput = document.getElementById("field-submitted-by");
 const submitBtn = document.getElementById("edit-submit-btn");
+const deleteBtn = document.getElementById("edit-delete-btn");
 
 // --- module-level state for whichever form instance is currently open ---
 let currentMode = "add"; // "add" | "update"
 let currentPersonId = null;
-let currentPersonData = null; // original data.js-style data object; merged into on submit
-let currentPersonRels = null; // preserved as-is; this form doesn't edit relationships
+let currentPersonData = null;
+let currentPersonRels = null;
 let existingPhotos = [];
-let stagedFiles = []; // [{ file, caption }]
+let stagedFiles = [];
 let existingAvatarUrl = null;
-let stagedAvatarFile = null; // File | null — replaces existingAvatarUrl on submit if set
+let stagedAvatarFile = null;
+let peopleListRef = [];
+let relationRows = []; // [{ type: 'child'|'parent'|'spouse', personId: string }]
 
 /**
  * Opens the modal.
  * @param {"add"|"update"} mode
  * @param {object|null} person - existing person ({id, data, rels}) when editing, null when adding
- * @param {Array} peopleList - full people array, used to populate the "relation to" dropdown when adding
+ * @param {Array} peopleList - full people array, used for the relation dropdowns
  * @param {Function} onSubmitted - called after a successful submission
+ * @param {Function} onDeleted - called after a successful delete submission
  */
-export function openEditForm({ mode, person = null, peopleList = [], onSubmitted }) {
+export function openEditForm({ mode, person = null, peopleList = [], onSubmitted, onDeleted }) {
   currentMode = mode;
   currentPersonId = person?.id || null;
   currentPersonData = person?.data || {};
@@ -47,20 +55,25 @@ export function openEditForm({ mode, person = null, peopleList = [], onSubmitted
   stagedFiles = [];
   existingAvatarUrl = person?.data?.avatar || null;
   stagedAvatarFile = null;
+  peopleListRef = peopleList;
+  relationRows = [];
 
   titleEl.textContent = mode === "add" ? "Add Person" : `Edit ${person?.data?.["first name"] || "Person"}`;
-  relationFields.classList.toggle("hidden", mode !== "add");
+  relationSection.classList.toggle("hidden", mode !== "add");
+  deleteBtn.classList.toggle("hidden", mode !== "update");
 
   if (mode === "add") {
-    const noRelationOption = `<option value="">— No relation (standalone / first person) —</option>`;
-    const peopleOptions = peopleList
-      .map((p) => {
-        const label = `${p.data["first name"] || ""} ${p.data["last name"] || ""}`.trim() || p.id;
-        return `<option value="${p.id}">${label}</option>`;
-      })
-      .join("");
-    relationToSel.innerHTML = noRelationOption + peopleOptions;
+    relationRows = [{ type: "child", personId: "" }];
   }
+  renderRelationRows();
+  populateParentDropdowns(peopleList, currentPersonId);
+
+  const bio = currentPersonData.parents_bio || [];
+  const adoptive = currentPersonData.parents_adoptive || [];
+  bioParent1Sel.value = bio[0] || "";
+  bioParent2Sel.value = bio[1] || "";
+  adoptiveParent1Sel.value = adoptive[0] || "";
+  adoptiveParent2Sel.value = adoptive[1] || "";
 
   firstNameInput.value = person?.data?.["first name"] || "";
   lastNameInput.value = person?.data?.["last name"] || "";
@@ -80,8 +93,90 @@ export function openEditForm({ mode, person = null, peopleList = [], onSubmitted
     e.preventDefault();
     await handleSubmit(onSubmitted);
   };
+
+  deleteBtn.onclick = async () => {
+    await handleDelete(onDeleted);
+  };
 }
 
+function populateParentDropdowns(peopleList, excludeId) {
+  const optionsHtml =
+    `<option value="">— none —</option>` +
+    peopleList
+      .filter((p) => p.id !== excludeId)
+      .map((p) => {
+        const label = `${p.data["first name"] || ""} ${p.data["last name"] || ""}`.trim() || p.id;
+        return `<option value="${p.id}">${label}</option>`;
+      })
+      .join("");
+
+  [bioParent1Sel, bioParent2Sel, adoptiveParent1Sel, adoptiveParent2Sel].forEach((sel) => {
+    sel.innerHTML = optionsHtml;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Relations list (multi-relationship support)
+// ---------------------------------------------------------------------------
+function renderRelationRows() {
+  if (!relationRows.length) {
+    relationsListEl.innerHTML = `<p class="no-relations-note">No relation — this will be a standalone / first person.</p>`;
+    return;
+  }
+
+  relationsListEl.innerHTML = relationRows
+    .map((row, i) => {
+      const peopleOptions = peopleListRef
+        .map((p) => {
+          const label = `${p.data["first name"] || ""} ${p.data["last name"] || ""}`.trim() || p.id;
+          const selected = p.id === row.personId ? "selected" : "";
+          return `<option value="${p.id}" ${selected}>${label}</option>`;
+        })
+        .join("");
+
+      return `
+        <div class="relation-row" data-index="${i}">
+          <select class="relation-type-select" data-index="${i}">
+            <option value="child" ${row.type === "child" ? "selected" : ""}>Child of</option>
+            <option value="parent" ${row.type === "parent" ? "selected" : ""}>Parent of</option>
+            <option value="spouse" ${row.type === "spouse" ? "selected" : ""}>Spouse of</option>
+          </select>
+          <select class="relation-person-select" data-index="${i}">
+            <option value="">— choose a person —</option>
+            ${peopleOptions}
+          </select>
+          <button type="button" class="remove-relation-btn" data-index="${i}">Remove</button>
+        </div>
+      `;
+    })
+    .join("");
+
+  relationsListEl.querySelectorAll(".relation-type-select").forEach((sel) => {
+    sel.addEventListener("change", () => {
+      relationRows[Number(sel.dataset.index)].type = sel.value;
+    });
+  });
+  relationsListEl.querySelectorAll(".relation-person-select").forEach((sel) => {
+    sel.addEventListener("change", () => {
+      relationRows[Number(sel.dataset.index)].personId = sel.value;
+    });
+  });
+  relationsListEl.querySelectorAll(".remove-relation-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      relationRows.splice(Number(btn.dataset.index), 1);
+      renderRelationRows();
+    });
+  });
+}
+
+addRelationRowBtn.addEventListener("click", () => {
+  relationRows.push({ type: "child", personId: "" });
+  renderRelationRows();
+});
+
+// ---------------------------------------------------------------------------
+// Photos / avatar (unchanged from before)
+// ---------------------------------------------------------------------------
 function renderExistingPhotos() {
   existingPhotosEl.innerHTML = existingPhotos
     .map(
@@ -173,7 +268,7 @@ avatarInput.addEventListener("change", () => {
 photosInput.addEventListener("change", () => {
   const newFiles = Array.from(photosInput.files).map((file) => ({ file, caption: "" }));
   stagedFiles.push(...newFiles);
-  photosInput.value = ""; // allow re-selecting the same file again later if needed
+  photosInput.value = "";
   renderStagedPhotos();
 });
 
@@ -194,6 +289,9 @@ function slugify(str) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Submit
+// ---------------------------------------------------------------------------
 async function handleSubmit(onSubmitted) {
   submitBtn.disabled = true;
 
@@ -216,6 +314,9 @@ async function handleSubmit(onSubmitted) {
       avatarUrl = uploaded.url;
     }
 
+    const parentsBio = [bioParent1Sel.value, bioParent2Sel.value].filter(Boolean);
+    const parentsAdoptive = [adoptiveParent1Sel.value, adoptiveParent2Sel.value].filter(Boolean);
+
     const data = {
       ...currentPersonData,
       "first name": firstNameInput.value.trim(),
@@ -226,14 +327,14 @@ async function handleSubmit(onSubmitted) {
       description: descriptionInput.value.trim(),
       avatar: avatarUrl || "",
       photos: [...existingPhotos, ...newlyUploaded],
+      parents_bio: parentsBio,
+      parents_adoptive: parentsAdoptive,
     };
 
-    // Adding a brand-new person starts with empty relationship arrays — the
-    // reciprocal link (e.g. adding them as a child of someone) is applied
-    // automatically when the admin approves, based on relation_to/relation_type.
-    // Editing an existing person keeps their current rels untouched, since
-    // this form doesn't offer relationship editing yet.
     const rels = currentMode === "add" ? { spouses: [], children: [], parents: [] } : currentPersonRels;
+
+    const relations =
+      currentMode === "add" ? relationRows.filter((r) => r.personId).map((r) => ({ type: r.type, person_id: r.personId })) : null;
 
     submitBtn.textContent = "Submitting…";
 
@@ -241,8 +342,7 @@ async function handleSubmit(onSubmitted) {
       editType: currentMode,
       personId,
       payload: { data, rels },
-      relationToId: currentMode === "add" ? relationToSel.value : null,
-      relationType: currentMode === "add" ? relationTypeSel.value : null,
+      relations,
       submittedBy: submittedByInput.value.trim(),
     });
 
@@ -258,5 +358,30 @@ async function handleSubmit(onSubmitted) {
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = "Submit for approval";
+  }
+}
+
+async function handleDelete(onDeleted) {
+  const name = `${currentPersonData?.["first name"] || ""} ${currentPersonData?.["last name"] || ""}`.trim();
+  if (!confirm(`Submit a request to delete ${name || "this person"}? An admin must approve it.`)) return;
+
+  deleteBtn.disabled = true;
+  try {
+    const { error } = await submitPendingEdit({
+      editType: "delete",
+      personId: currentPersonId,
+      payload: {},
+      submittedBy: submittedByInput.value.trim(),
+    });
+
+    if (error) {
+      alert(`Delete request failed: ${error.message}`);
+      return;
+    }
+
+    modal.classList.add("hidden");
+    onDeleted?.();
+  } finally {
+    deleteBtn.disabled = false;
   }
 }

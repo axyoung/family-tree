@@ -70,13 +70,18 @@ async function loadPendingEdits() {
 
   pendingCount.textContent = `${edits.length} pending edit${edits.length > 1 ? "s" : ""}`;
 
-  // Look up display names for anyone referenced as a "relation_to" target,
-  // so we can show "Add as child of: Lin Nguyen" instead of a raw ID.
-  const relationIds = [...new Set(edits.map((e) => e.relation_to_id).filter(Boolean))];
-  let relationNames = {};
-  if (relationIds.length) {
-    const { data: people } = await supabase.from("people").select("id, data").in("id", relationIds);
-    relationNames = Object.fromEntries(
+  // Look up display names for anyone referenced as a relation target or
+  // as the subject of a delete edit (which has no payload.data to read from).
+  const relationIds = new Set();
+  edits.forEach((e) => {
+    (e.relations || []).forEach((r) => r.person_id && relationIds.add(r.person_id));
+    if (e.relation_to_id) relationIds.add(e.relation_to_id);
+    if (e.edit_type === "delete") relationIds.add(e.person_id);
+  });
+  let names = {};
+  if (relationIds.size) {
+    const { data: people } = await supabase.from("people").select("id, data").in("id", [...relationIds]);
+    names = Object.fromEntries(
       (people || []).map((p) => [p.id, `${p.data["first name"] || ""} ${p.data["last name"] || ""}`.trim()])
     );
   }
@@ -86,18 +91,35 @@ async function loadPendingEdits() {
     const card = document.createElement("div");
     card.className = "pending-card";
 
+    if (edit.edit_type === "delete") {
+      card.innerHTML = `
+        <h3 class="delete-heading">Delete request: ${names[edit.person_id] || edit.person_id}</h3>
+        <p class="submitted-meta">Submitted ${edit.submitted_by ? `by ${edit.submitted_by} ` : ""}on ${new Date(edit.submitted_at).toLocaleString()}</p>
+        <div class="pending-actions">
+          <button class="approve-btn" data-id="${edit.id}">Approve Delete</button>
+          <button class="reject-btn" data-id="${edit.id}">Reject</button>
+        </div>
+      `;
+      pendingList.appendChild(card);
+      return;
+    }
+
     const d = edit.payload.data || {};
     const name = `${d["first name"] || ""} ${d["last name"] || ""}`.trim();
     const photoCount = d.photos?.length || 0;
 
-    const relationLine =
-      edit.edit_type === "add" && edit.relation_to_id
-        ? `<p><strong>Relation:</strong> ${edit.relation_type} of ${relationNames[edit.relation_to_id] || edit.relation_to_id}</p>`
-        : "";
+    const relationsList = edit.relations?.length
+      ? edit.relations
+      : edit.relation_to_id
+      ? [{ type: edit.relation_type, person_id: edit.relation_to_id }]
+      : [];
+    const relationLines = relationsList
+      .map((r) => `<p><strong>Relation:</strong> ${r.type} of ${names[r.person_id] || r.person_id}</p>`)
+      .join("");
 
     card.innerHTML = `
       <h3>${edit.edit_type === "add" ? "New person" : "Update"}: ${name || edit.person_id}</h3>
-      ${relationLine}
+      ${relationLines}
       ${d.gender_identity ? `<p><strong>Gender identity:</strong> ${d.gender_identity}</p>` : ""}
       ${d.birthday ? `<p><strong>Birthday:</strong> ${d.birthday}</p>` : ""}
       ${d.description ? `<p><strong>Description:</strong> ${d.description}</p>` : ""}

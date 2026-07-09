@@ -24,12 +24,17 @@ create table people (
 -- ---------------------------------------------------------------------------
 create table pending_edits (
   id uuid primary key default gen_random_uuid(),
-  edit_type text not null check (edit_type in ('add', 'update')),
-  person_id text not null,       -- id of the person being added/updated
-  payload jsonb not null,        -- proposed { data, rels }
-  -- for 'add' edits: how the new person connects to someone who already exists
-  relation_to_id text,           -- existing person's id (null for 'update' edits)
-  relation_type text,            -- 'child' | 'parent' | 'spouse' (null for 'update')
+  edit_type text not null check (edit_type in ('add', 'update', 'delete')),
+  person_id text not null,       -- id of the person being added/updated/deleted
+  payload jsonb not null default '{}'::jsonb, -- proposed { data, rels }; {} for deletes
+  -- Multiple relationships a new person connects through, e.g. a child of
+  -- BOTH a biological and adoptive parent at once:
+  -- [{"type":"child","person_id":"mom_bio"},{"type":"child","person_id":"mom_adoptive"}]
+  relations jsonb,
+  -- legacy single-relation columns, kept for backward compatibility with
+  -- any pending rows created before multi-relation support existed
+  relation_to_id text,
+  relation_type text,
   submitted_by text,             -- optional free-text name the submitter typed in
   submitted_at timestamptz not null default now(),
   status text not null default 'pending' check (status in ('pending','approved','rejected'))
@@ -41,6 +46,7 @@ create table pending_edits (
 create table app_settings (
   id int primary key default 1,
   edit_password_hash text,
+  view_password_hash text,
   constraint singleton check (id = 1)
 );
 insert into app_settings (id) values (1) on conflict (id) do nothing;
@@ -52,9 +58,11 @@ alter table people enable row level security;
 alter table pending_edits enable row level security;
 alter table app_settings enable row level security;
 
--- Anyone (including anonymous visitors) can read the live tree
-create policy "public read people" on people
-  for select using (true);
+-- NOTE: there is deliberately NO public/anon select policy on `people`.
+-- Viewing the tree requires the view password, enforced by the get_people()
+-- RPC below (SECURITY DEFINER bypasses RLS only inside that function, after
+-- checking the password). This is what actually makes viewing
+-- password-protected — a client can't just query the table directly.
 
 -- Only you, logged in via Supabase Auth, can directly modify people or
 -- read/manage pending edits. Everyone else must go through the RPCs below.
@@ -65,7 +73,7 @@ create policy "admin manage pending" on pending_edits
   for all using (auth.role() = 'authenticated');
 
 -- Nobody can read app_settings directly — only the RPC functions (which run
--- as the table owner via SECURITY DEFINER) can see the password hash.
+-- as the table owner via SECURITY DEFINER) can see the password hashes.
 -- (No select policy is created, so RLS blocks all direct client reads.)
 
 -- ---------------------------------------------------------------------------
@@ -85,13 +93,58 @@ $$;
 grant execute on function set_edit_password to authenticated;
 
 -- ---------------------------------------------------------------------------
+-- 5b. SET / CHANGE THE VIEW PASSWORD  (run this yourself once, as admin)
+-- ---------------------------------------------------------------------------
+create or replace function set_view_password(p_new_password text)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  update app_settings
+  set view_password_hash = crypt(p_new_password, gen_salt('bf'))
+  where id = 1;
+end;
+$$;
+grant execute on function set_view_password to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 5c. FETCH THE TREE  (called by anyone with the view password)
+-- ---------------------------------------------------------------------------
+create or replace function get_people(p_password text)
+returns setof people
+language plpgsql
+security definer
+as $$
+declare
+  v_hash text;
+begin
+  select view_password_hash into v_hash from app_settings where id = 1;
+  if v_hash is null then
+    raise exception 'View password has not been set up yet. Ask the site admin to run set_view_password().';
+  end if;
+  if crypt(p_password, v_hash) <> v_hash then
+    raise exception 'Incorrect password';
+  end if;
+  return query select * from people;
+end;
+$$;
+grant execute on function get_people to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- 6. SUBMIT A PENDING EDIT  (called by anyone with the shared password)
 -- ---------------------------------------------------------------------------
+-- Drop first: if this function's parameter list ever changed (e.g. adding
+-- p_relations later), Postgres treats the old signature as a DIFFERENT
+-- function and CREATE OR REPLACE alone won't remove it, causing a
+-- "function name is not unique" error next time this is called.
+drop function if exists submit_pending_edit(text, text, jsonb, text, text, text, text);
 create or replace function submit_pending_edit(
   p_edit_type text,
   p_person_id text,
   p_payload jsonb,
   p_password text,
+  p_relations jsonb default null,
   p_relation_to_id text default null,
   p_relation_type text default null,
   p_submitted_by text default null
@@ -113,8 +166,8 @@ begin
     raise exception 'Incorrect edit password';
   end if;
 
-  insert into pending_edits (edit_type, person_id, payload, relation_to_id, relation_type, submitted_by)
-  values (p_edit_type, p_person_id, p_payload, p_relation_to_id, p_relation_type, p_submitted_by)
+  insert into pending_edits (edit_type, person_id, payload, relations, relation_to_id, relation_type, submitted_by)
+  values (p_edit_type, p_person_id, p_payload, p_relations, p_relation_to_id, p_relation_type, p_submitted_by)
   returning id into v_id;
 
   return v_id;
@@ -138,6 +191,8 @@ declare
   existing_rels jsonb;
   field_name text;
   reciprocal_field text;
+  rel jsonb;
+  rel_list jsonb;
 begin
   select * into e from pending_edits where id = p_edit_id and status = 'pending';
   if not found then
@@ -152,51 +207,76 @@ begin
     where id = e.person_id;
 
     if not found then
-      -- shouldn't normally happen, but handle gracefully
       insert into people (id, data, rels) values (e.person_id, e.payload->'data', e.payload->'rels');
     end if;
+
+  elsif e.edit_type = 'delete' then
+    delete from people where id = e.person_id;
+
+    -- scrub any dangling references to the deleted person from everyone else
+    update people set rels = jsonb_set(
+      rels, '{children}',
+      (select coalesce(jsonb_agg(x), '[]'::jsonb) from jsonb_array_elements_text(coalesce(rels->'children','[]'::jsonb)) x where x <> e.person_id)
+    ) where coalesce(rels->'children','[]'::jsonb) ? e.person_id;
+
+    update people set rels = jsonb_set(
+      rels, '{parents}',
+      (select coalesce(jsonb_agg(x), '[]'::jsonb) from jsonb_array_elements_text(coalesce(rels->'parents','[]'::jsonb)) x where x <> e.person_id)
+    ) where coalesce(rels->'parents','[]'::jsonb) ? e.person_id;
+
+    update people set rels = jsonb_set(
+      rels, '{spouses}',
+      (select coalesce(jsonb_agg(x), '[]'::jsonb) from jsonb_array_elements_text(coalesce(rels->'spouses','[]'::jsonb)) x where x <> e.person_id)
+    ) where coalesce(rels->'spouses','[]'::jsonb) ? e.person_id;
 
   elsif e.edit_type = 'add' then
     insert into people (id, data, rels)
     values (e.person_id, e.payload->'data', e.payload->'rels');
 
-    if e.relation_to_id is not null then
-      -- field on the EXISTING person that should list the new person
-      field_name := case e.relation_type
+    -- Prefer the new multi-relation array; fall back to the legacy single
+    -- relation columns for any pending rows created before this existed.
+    rel_list := coalesce(
+      e.relations,
+      case when e.relation_to_id is not null
+        then jsonb_build_array(jsonb_build_object('type', e.relation_type, 'person_id', e.relation_to_id))
+        else '[]'::jsonb
+      end
+    );
+
+    for rel in select * from jsonb_array_elements(rel_list) loop
+      field_name := case rel->>'type'
         when 'child' then 'children'
         when 'parent' then 'parents'
         when 'spouse' then 'spouses'
         else null
       end;
-      -- field on the NEW person that should list the existing person
-      -- (the other direction — this is what was missing before)
-      reciprocal_field := case e.relation_type
+      reciprocal_field := case rel->>'type'
         when 'child' then 'parents'
         when 'parent' then 'children'
         when 'spouse' then 'spouses'
         else null
       end;
 
-      if field_name is not null then
-        select rels into existing_rels from people where id = e.relation_to_id;
-        update people
-        set rels = jsonb_set(
-          existing_rels,
-          array[field_name],
-          (coalesce(existing_rels->field_name, '[]'::jsonb) || to_jsonb(e.person_id::text))
-        )
-        where id = e.relation_to_id;
+      if field_name is not null and rel->>'person_id' is not null then
+        select rels into existing_rels from people where id = rel->>'person_id';
+        if existing_rels is not null then
+          update people
+          set rels = jsonb_set(
+            existing_rels, array[field_name],
+            (coalesce(existing_rels->field_name, '[]'::jsonb) || to_jsonb(e.person_id::text))
+          )
+          where id = rel->>'person_id';
 
-        select rels into existing_rels from people where id = e.person_id;
-        update people
-        set rels = jsonb_set(
-          existing_rels,
-          array[reciprocal_field],
-          (coalesce(existing_rels->reciprocal_field, '[]'::jsonb) || to_jsonb(e.relation_to_id::text))
-        )
-        where id = e.person_id;
+          select rels into existing_rels from people where id = e.person_id;
+          update people
+          set rels = jsonb_set(
+            existing_rels, array[reciprocal_field],
+            (coalesce(existing_rels->reciprocal_field, '[]'::jsonb) || to_jsonb((rel->>'person_id')::text))
+          )
+          where id = e.person_id;
+        end if;
       end if;
-    end if;
+    end loop;
   end if;
 
   update pending_edits set status = 'approved' where id = p_edit_id;

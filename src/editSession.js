@@ -29,8 +29,7 @@ export async function submitPendingEdit({
   editType,
   personId,
   payload,
-  relationToId,
-  relationType,
+  relations,
   submittedBy,
 }) {
   const password = await promptForPasswordIfNeeded();
@@ -41,8 +40,7 @@ export async function submitPendingEdit({
     p_person_id: personId,
     p_payload: payload,
     p_password: password,
-    p_relation_to_id: relationToId || null,
-    p_relation_type: relationType || null,
+    p_relations: relations || null,
     p_submitted_by: submittedBy || null,
   });
 

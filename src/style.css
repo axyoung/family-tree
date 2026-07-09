@@ -156,7 +156,133 @@ body {
   cursor: pointer;
 }
 
-/* --- Generic centered modal (used by the add/edit person form) --- */
+/* --- View password gate --- */
+.view-gate {
+  position: fixed;
+  inset: 0;
+  background: #16181a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+.view-gate-box {
+  background: #202225;
+  border-radius: 12px;
+  padding: 32px;
+  width: 320px;
+  text-align: center;
+  color: #eee;
+}
+.view-gate-box h2 {
+  margin: 0 0 8px 0;
+}
+.view-gate-box p {
+  color: #aaa;
+  font-size: 14px;
+  margin: 0 0 16px 0;
+}
+.view-gate-box form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.view-gate-box input {
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #16181a;
+  color: #eee;
+}
+.view-gate-box button {
+  padding: 10px;
+  border-radius: 6px;
+  border: none;
+  background: #3b6e5b;
+  color: #fff;
+  cursor: pointer;
+}
+
+/* --- Multi-relation rows in the add-person form --- */
+.lineage-parent-fields {
+  background: #f0f4f2;
+  padding: 12px;
+  border-radius: 8px;
+}
+.lineage-parent-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.lineage-parent-row select {
+  flex: 1;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.relation-fields-section {
+  background: #f7f5f2;
+  padding: 12px;
+  border-radius: 8px;
+}
+.relation-fields-label {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+}
+.no-relations-note {
+  font-size: 13px;
+  color: #888;
+  margin: 0 0 8px 0;
+}
+.relation-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.relation-row select {
+  flex: 1;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+.relation-row .remove-relation-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+}
+#add-relation-row-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #3b6e5b;
+  background: #eef5f1;
+  color: #3b6e5b;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+/* --- Delete button in edit form --- */
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.delete-btn {
+  padding: 10px 20px;
+  border: 1px solid #b23b3b;
+  border-radius: 6px;
+  background: #fff;
+  color: #b23b3b;
+  cursor: pointer;
+}
+.delete-btn:hover {
+  background: #fbeaea;
+}
 .modal {
   position: fixed;
   inset: 0;
@@ -400,11 +526,7 @@ body {
   padding: 4px 6px;
 }
 
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-.form-actions button {
+#edit-submit-btn {
   padding: 10px 20px;
   border: none;
   border-radius: 6px;
@@ -413,7 +535,7 @@ body {
   font-size: 14px;
   cursor: pointer;
 }
-.form-actions button:disabled {
+#edit-submit-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

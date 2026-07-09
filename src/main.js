@@ -1,14 +1,14 @@
 import * as f3 from "family-chart";
 import "family-chart/styles/family-chart.css";
 import "./style.css";
-import { supabase } from "./supabaseClient.js";
 import { requestEditAccess } from "./editSession.js";
 import { openEditForm } from "./editForm.js";
+import { requireViewAccess } from "./viewGate.js";
 
 // ---------------------------------------------------------------------------
 // STATE
 // ---------------------------------------------------------------------------
-let familyData = []; // loaded from Supabase on init
+let familyData = []; // loaded once the view password is verified
 let currentLineageMode = "bio"; // "bio" | "adoptive"
 let editModeEnabled = false;
 let f3Chart = null;
@@ -24,16 +24,8 @@ function showStatus(message, isError = false) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 1. LOAD DATA FROM SUPABASE
-// ---------------------------------------------------------------------------
-async function loadFamilyData() {
-  const { data, error } = await supabase.from("people").select("id, data, rels");
-  if (error) {
-    showStatus(`Failed to load family data: ${error.message}`, true);
-    return [];
-  }
-  return (data || []).map((person) => ({
+function normalizeRels(rawPeople) {
+  return (rawPeople || []).map((person) => ({
     ...person,
     rels: {
       spouses: person.rels?.spouses || [],
@@ -41,6 +33,47 @@ async function loadFamilyData() {
       parents: person.rels?.parents || [],
     },
   }));
+}
+
+// The library defaults to centering on whichever person happens to be first
+// in the data array — usually not what you want. Instead, anchor on
+// whichever no-recorded-parents person has the MOST descendants under the
+// current lineage mode, so switching modes can never land on a near-empty
+// branch (e.g. an adoptive parent who has no other visible relatives).
+function findRootPersonId() {
+  const treeData = buildTreeData(currentLineageMode);
+  const byId = new Map(treeData.map((p) => [p.id, p]));
+
+  const rootCandidates = treeData.filter(
+    (p) =>
+      !(p.data.parents_bio?.length) &&
+      !(p.data.parents_adoptive?.length) &&
+      !(p.rels.parents?.length)
+  );
+  if (!rootCandidates.length) return familyData[0]?.id;
+
+  function countDescendants(id, visited) {
+    if (visited.has(id)) return 0;
+    visited.add(id);
+    const node = byId.get(id);
+    if (!node) return 0;
+    let count = 1;
+    (node.rels.children || []).forEach((childId) => {
+      count += countDescendants(childId, visited);
+    });
+    return count;
+  }
+
+  let best = rootCandidates[0];
+  let bestCount = -1;
+  rootCandidates.forEach((candidate) => {
+    const count = countDescendants(candidate.id, new Set());
+    if (count > bestCount) {
+      bestCount = count;
+      best = candidate;
+    }
+  });
+  return best.id;
 }
 
 // ---------------------------------------------------------------------------
@@ -59,9 +92,19 @@ function buildTreeData(mode) {
     const allMentionedParentIds = new Set([...(bio || []), ...(adoptive || [])]);
 
     allMentionedParentIds.forEach((parentId) => {
-      if (active.includes(parentId)) return;
       const parentNode = byId.get(parentId);
-      if (parentNode?.rels?.children) {
+      if (!parentNode?.rels) return;
+      parentNode.rels.children = parentNode.rels.children || [];
+
+      if (active.includes(parentId)) {
+        // this parent is the currently-active lineage for this child —
+        // make sure the reciprocal link exists, regardless of what was
+        // actually saved in the database
+        if (!parentNode.rels.children.includes(person.id)) {
+          parentNode.rels.children.push(person.id);
+        }
+      } else {
+        // this parent belongs to the inactive lineage — hide the link
         parentNode.rels.children = parentNode.rels.children.filter(
           (childId) => childId !== person.id
         );
@@ -75,17 +118,45 @@ function buildTreeData(mode) {
 }
 
 function rerenderTree() {
-  f3Chart.updateData(buildTreeData(currentLineageMode));
+  const data = buildTreeData(currentLineageMode);
+  validateTreeData(data);
+  f3Chart.updateData(data);
   f3Chart.updateTree({ initial: true });
+}
+
+// Logs exactly which person and which parents are conflicting, since the
+// library's own error ("child has more than 1 parent") doesn't say who.
+function validateTreeData(clones) {
+  const childToParents = new Map();
+  clones.forEach((person) => {
+    (person.rels.children || []).forEach((childId) => {
+      if (!childToParents.has(childId)) childToParents.set(childId, []);
+      childToParents.get(childId).push(person.id);
+    });
+  });
+  childToParents.forEach((parents, childId) => {
+    if (parents.length > 2) {
+      const childName = clones.find((p) => p.id === childId)?.data?.["first name"] || childId;
+      console.error(
+        `DATA CONFLICT: "${childName}" (id: ${childId}) is listed as a child of ${parents.length} people:`,
+        parents.map((pid) => `${pid} (${clones.find((p) => p.id === pid)?.data?.["first name"] || "?"})`)
+      );
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
 // 3. CHART SETUP
 // ---------------------------------------------------------------------------
 async function init() {
-  familyData = await loadFamilyData();
+  const rawPeople = await requireViewAccess(); // blocks until password verified
+  familyData = normalizeRels(rawPeople);
 
   f3Chart = f3.createChart("#FamilyChart", buildTreeData(currentLineageMode));
+  f3Chart
+    .setAncestryDepth(20)
+    .setProgenyDepth(20)
+    .setShowSiblingsOfMain(true);
 
   f3Card = f3Chart
     .setCardHtml()
@@ -120,7 +191,9 @@ async function init() {
       openEditForm({
         mode: "update",
         person,
+        peopleList: familyData,
         onSubmitted: () => showStatus("Submitted for approval — an admin will review it soon."),
+        onDeleted: () => showStatus("Delete request submitted for approval."),
       });
       return;
     }
@@ -130,7 +203,9 @@ async function init() {
     openSidePanel(d.data?.id);
   });
 
-  f3Chart.updateTree({ initial: true });
+  f3Chart.updateMainId(findRootPersonId());
+  validateTreeData(buildTreeData(currentLineageMode));
+  f3Chart.updateTree({ initial: true, tree_position: "fit" });
 }
 
 // ---------------------------------------------------------------------------
@@ -198,6 +273,11 @@ function switchLineageMode(mode) {
   document.getElementById("btn-adoptive").classList.toggle("active", mode === "adoptive");
   rerenderTree();
 }
+
+document.getElementById("btn-reset-view").addEventListener("click", () => {
+  f3Chart.updateMainId(findRootPersonId());
+  f3Chart.updateTree({ tree_position: "fit" });
+});
 
 // ---------------------------------------------------------------------------
 // 6. EDIT MODE GATE + ADD PERSON BUTTON
