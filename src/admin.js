@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient.js";
+import { deleteAllPhotosForPerson } from "./photoUpload.js";
 import "./style.css";
 
 const loginSection = document.getElementById("login-section");
@@ -143,11 +144,15 @@ async function loadPendingEdits() {
   pendingList.querySelectorAll(".approve-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
       btn.disabled = true;
+      const edit = edits.find((e) => e.id === btn.dataset.id);
       const { error } = await supabase.rpc("approve_pending_edit", { p_edit_id: btn.dataset.id });
       if (error) {
         alert(`Approval failed: ${error.message}`);
         btn.disabled = false;
         return;
+      }
+      if (edit?.edit_type === "delete") {
+        await deleteAllPhotosForPerson(edit.person_id);
       }
       loadPendingEdits();
     });

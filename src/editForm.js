@@ -1,4 +1,4 @@
-import { uploadPhotos } from "./photoUpload.js";
+import { uploadPhotos, deletePhotos } from "./photoUpload.js";
 import { submitPendingEdit } from "./editSession.js";
 
 const modal = document.getElementById("edit-modal");
@@ -35,6 +35,7 @@ let existingPhotos = [];
 let stagedFiles = [];
 let existingAvatarUrl = null;
 let stagedAvatarFile = null;
+let photosToDeleteFromStorage = []; // existing photo/avatar objects removed this session
 let peopleListRef = [];
 let relationRows = []; // [{ type: 'child'|'parent'|'spouse', personId: string }]
 
@@ -47,6 +48,9 @@ let relationRows = []; // [{ type: 'child'|'parent'|'spouse', personId: string }
  * @param {Function} onDeleted - called after a successful delete submission
  */
 export function openEditForm({ mode, person = null, peopleList = [], onSubmitted, onDeleted }) {
+  if (mode === "update" && !person) {
+    console.error("[editForm] opened in update mode but person is null/undefined — check the caller's familyData.find() lookup");
+  }
   currentMode = mode;
   currentPersonId = person?.id || null;
   currentPersonData = person?.data || {};
@@ -55,6 +59,7 @@ export function openEditForm({ mode, person = null, peopleList = [], onSubmitted
   stagedFiles = [];
   existingAvatarUrl = person?.data?.avatar || null;
   stagedAvatarFile = null;
+  photosToDeleteFromStorage = [];
   peopleListRef = peopleList;
   relationRows = [];
 
@@ -63,7 +68,7 @@ export function openEditForm({ mode, person = null, peopleList = [], onSubmitted
   deleteBtn.classList.toggle("hidden", mode !== "update");
 
   if (mode === "add") {
-    relationRows = [{ type: "child", personId: "" }];
+    relationRows = [{ type: "spouse", personId: "" }];
   }
   renderRelationRows();
   populateParentDropdowns(peopleList, currentPersonId);
@@ -136,11 +141,7 @@ function renderRelationRows() {
 
       return `
         <div class="relation-row" data-index="${i}">
-          <select class="relation-type-select" data-index="${i}">
-            <option value="child" ${row.type === "child" ? "selected" : ""}>Child of</option>
-            <option value="parent" ${row.type === "parent" ? "selected" : ""}>Parent of</option>
-            <option value="spouse" ${row.type === "spouse" ? "selected" : ""}>Spouse of</option>
-          </select>
+          <span class="relation-row-label">Spouse of</span>
           <select class="relation-person-select" data-index="${i}">
             <option value="">— choose a person —</option>
             ${peopleOptions}
@@ -151,11 +152,6 @@ function renderRelationRows() {
     })
     .join("");
 
-  relationsListEl.querySelectorAll(".relation-type-select").forEach((sel) => {
-    sel.addEventListener("change", () => {
-      relationRows[Number(sel.dataset.index)].type = sel.value;
-    });
-  });
   relationsListEl.querySelectorAll(".relation-person-select").forEach((sel) => {
     sel.addEventListener("change", () => {
       relationRows[Number(sel.dataset.index)].personId = sel.value;
@@ -170,7 +166,7 @@ function renderRelationRows() {
 }
 
 addRelationRowBtn.addEventListener("click", () => {
-  relationRows.push({ type: "child", personId: "" });
+  relationRows.push({ type: "spouse", personId: "" });
   renderRelationRows();
 });
 
@@ -183,15 +179,23 @@ function renderExistingPhotos() {
       (photo, i) => `
         <div class="existing-photo">
           <img src="${photo.url}" alt="${photo.caption || ""}" />
+          <input type="text" class="existing-caption-input" placeholder="Caption" data-index="${i}" value="${photo.caption || ""}" />
           <button type="button" class="remove-photo-btn" data-index="${i}">Remove</button>
         </div>
       `
     )
     .join("");
 
+  existingPhotosEl.querySelectorAll(".existing-caption-input").forEach((input) => {
+    input.addEventListener("input", () => {
+      existingPhotos[Number(input.dataset.index)].caption = input.value;
+    });
+  });
+
   existingPhotosEl.querySelectorAll(".remove-photo-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      existingPhotos.splice(Number(btn.dataset.index), 1);
+      const [removed] = existingPhotos.splice(Number(btn.dataset.index), 1);
+      if (removed) photosToDeleteFromStorage.push(removed);
       renderExistingPhotos();
     });
   });
@@ -248,6 +252,7 @@ function renderExistingAvatar() {
       </div>
     `;
     document.getElementById("remove-avatar-btn").addEventListener("click", () => {
+      photosToDeleteFromStorage.push({ url: existingAvatarUrl });
       existingAvatarUrl = null;
       renderExistingAvatar();
     });
@@ -259,7 +264,9 @@ function renderExistingAvatar() {
 
 avatarInput.addEventListener("change", () => {
   if (avatarInput.files[0]) {
+    if (existingAvatarUrl) photosToDeleteFromStorage.push({ url: existingAvatarUrl });
     stagedAvatarFile = avatarInput.files[0];
+    existingAvatarUrl = null;
     avatarInput.value = "";
     renderExistingAvatar();
   }
@@ -351,17 +358,27 @@ async function handleSubmit(onSubmitted) {
       return;
     }
 
+    if (photosToDeleteFromStorage.length) {
+      await deletePhotos(photosToDeleteFromStorage);
+    }
+
     modal.classList.add("hidden");
     onSubmitted?.();
   } catch (err) {
     alert(`Something went wrong: ${err.message}`);
   } finally {
     submitBtn.disabled = false;
-    submitBtn.textContent = "Submit for approval";
+    submitBtn.textContent = "Submit";
   }
 }
 
 async function handleDelete(onDeleted) {
+  if (!currentPersonId) {
+    alert("No person is selected (this shouldn't happen — please close and reopen the edit form, and let the developer know).");
+    console.error("[editForm] handleDelete called with currentPersonId =", currentPersonId, "currentPersonData =", currentPersonData);
+    return;
+  }
+
   const name = `${currentPersonData?.["first name"] || ""} ${currentPersonData?.["last name"] || ""}`.trim();
   if (!confirm(`Submit a request to delete ${name || "this person"}? An admin must approve it.`)) return;
 

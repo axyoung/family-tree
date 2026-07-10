@@ -1,9 +1,11 @@
 import * as f3 from "family-chart";
 import "family-chart/styles/family-chart.css";
 import "./style.css";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 import { requestEditAccess } from "./editSession.js";
 import { openEditForm } from "./editForm.js";
-import { requireViewAccess } from "./viewGate.js";
+import { requireViewAccess, refetchPeople } from "./viewGate.js";
 
 // ---------------------------------------------------------------------------
 // STATE
@@ -33,6 +35,16 @@ function normalizeRels(rawPeople) {
       parents: person.rels?.parents || [],
     },
   }));
+}
+
+// Adds/updates apply immediately server-side now — refetch so the tree
+// reflects the change without a manual page reload.
+async function refreshAfterEdit() {
+  const rawPeople = await refetchPeople();
+  if (!rawPeople) return;
+  familyData = normalizeRels(rawPeople);
+  rerenderTree();
+  populateJumpToPerson();
 }
 
 // The library defaults to centering on whichever person happens to be first
@@ -97,14 +109,10 @@ function buildTreeData(mode) {
       parentNode.rels.children = parentNode.rels.children || [];
 
       if (active.includes(parentId)) {
-        // this parent is the currently-active lineage for this child —
-        // make sure the reciprocal link exists, regardless of what was
-        // actually saved in the database
         if (!parentNode.rels.children.includes(person.id)) {
           parentNode.rels.children.push(person.id);
         }
       } else {
-        // this parent belongs to the inactive lineage — hide the link
         parentNode.rels.children = parentNode.rels.children.filter(
           (childId) => childId !== person.id
         );
@@ -156,10 +164,12 @@ async function init() {
   f3Chart
     .setAncestryDepth(20)
     .setProgenyDepth(20)
-    .setShowSiblingsOfMain(true);
+    .setShowSiblingsOfMain(true)
+    .setSingleParentEmptyCard(false); // don't auto-insert placeholder "Unknown" spouse cards
 
   f3Card = f3Chart
     .setCardHtml()
+    .setMiniTree(true) // shows a small indicator on cards with hidden relatives
     .setCardDim({ width: 240, height: 100 })
     .setCardDisplay([["first name", "last name"]])
     .setCardInnerHtmlCreator((d) => {
@@ -192,8 +202,11 @@ async function init() {
         mode: "update",
         person,
         peopleList: familyData,
-        onSubmitted: () => showStatus("Submitted for approval — an admin will review it soon."),
-        onDeleted: () => showStatus("Delete request submitted for approval."),
+        onSubmitted: async () => {
+          showStatus("Saved.");
+          await refreshAfterEdit();
+        },
+        onDeleted: () => showStatus("Delete request submitted for admin approval."),
       });
       return;
     }
@@ -206,13 +219,40 @@ async function init() {
   f3Chart.updateMainId(findRootPersonId());
   validateTreeData(buildTreeData(currentLineageMode));
   f3Chart.updateTree({ initial: true, tree_position: "fit" });
+
+  populateJumpToPerson();
 }
 
+function populateJumpToPerson() {
+  const sorted = [...familyData].sort((a, b) => {
+    const nameA = `${a.data["first name"] || ""} ${a.data["last name"] || ""}`.trim();
+    const nameB = `${b.data["first name"] || ""} ${b.data["last name"] || ""}`.trim();
+    return nameA.localeCompare(nameB);
+  });
+  const select = document.getElementById("jump-to-person");
+  select.innerHTML =
+    `<option value="">Jump to person…</option>` +
+    sorted
+      .map((p) => {
+        const label = `${p.data["first name"] || ""} ${p.data["last name"] || ""}`.trim() || p.id;
+        return `<option value="${p.id}">${label}</option>`;
+      })
+      .join("");
+}
+
+document.getElementById("jump-to-person").addEventListener("change", (e) => {
+  const id = e.target.value;
+  if (!id) return;
+  f3Chart.updateMainId(id);
+  f3Chart.updateTree({ tree_position: "fit" });
+  openSidePanel(id);
+  e.target.value = "";
+});
+
 // ---------------------------------------------------------------------------
-// 4. PERSON DETAIL SIDE PANEL
+// 4. PERSON DETAIL SIDE PANEL (docked, not an overlay)
 // ---------------------------------------------------------------------------
 const sidePanel = document.getElementById("side-panel");
-const sidePanelBackdrop = document.getElementById("side-panel-backdrop");
 const sidePanelAvatar = document.getElementById("side-panel-avatar");
 const sidePanelTitle = document.getElementById("side-panel-title");
 const sidePanelIdentity = document.getElementById("side-panel-identity");
@@ -234,7 +274,7 @@ function openSidePanel(personId) {
   sidePanelTitle.textContent = `${person["first name"] || ""} ${person["last name"] || ""}`.trim();
   sidePanelIdentity.textContent = person.gender_identity || "";
   sidePanelBirthday.textContent = person.birthday || "";
-  sidePanelDesc.textContent = person.description || "";
+  sidePanelDesc.innerHTML = DOMPurify.sanitize(marked.parse(person.description || ""));
 
   sidePanelPhotos.innerHTML = (person.photos || [])
     .map(
@@ -248,18 +288,11 @@ function openSidePanel(personId) {
     .join("");
 
   sidePanel.classList.remove("hidden");
-  sidePanelBackdrop.classList.remove("hidden");
-  requestAnimationFrame(() => sidePanel.classList.add("open"));
 }
 
-function closeSidePanel() {
-  sidePanel.classList.remove("open");
-  sidePanelBackdrop.classList.add("hidden");
-  setTimeout(() => sidePanel.classList.add("hidden"), 250);
-}
-
-document.getElementById("side-panel-close").addEventListener("click", closeSidePanel);
-sidePanelBackdrop.addEventListener("click", closeSidePanel);
+document.getElementById("side-panel-close").addEventListener("click", () => {
+  sidePanel.classList.add("hidden");
+});
 
 // ---------------------------------------------------------------------------
 // 5. LINEAGE TOGGLE BUTTON WIRING
@@ -297,10 +330,6 @@ editModeBtn.addEventListener("click", async () => {
   const password = await requestEditAccess();
   if (!password) return; // user cancelled the password prompt
 
-  // We don't actually validate the password here — the server-side RPC
-  // validates it on the first real submission. Entering edit mode just
-  // reveals the edit buttons; a wrong password will simply fail later
-  // with a clear error when they try to submit something.
   editModeEnabled = true;
   editModeBtn.textContent = "Edit mode: On";
   addPersonBtn.classList.remove("hidden");
@@ -311,7 +340,10 @@ addPersonBtn.addEventListener("click", () => {
   openEditForm({
     mode: "add",
     peopleList: familyData,
-    onSubmitted: () => showStatus("Submitted for approval — an admin will review it soon."),
+    onSubmitted: async () => {
+      showStatus("Saved.");
+      await refreshAfterEdit();
+    },
   });
 });
 

@@ -25,6 +25,12 @@ async function tryFetch(password) {
  * Resolves with the people array once the correct password has been entered
  * (or was already cached in this browser tab's session).
  */
+export async function refetchPeople() {
+  const cached = sessionStorage.getItem(SESSION_KEY);
+  if (!cached) return null;
+  return tryFetch(cached);
+}
+
 export function requireViewAccess() {
   return new Promise((resolve) => {
     const cached = sessionStorage.getItem(SESSION_KEY);

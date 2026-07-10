@@ -33,6 +33,9 @@
         </div>
 
         <button id="btn-reset-view" class="edit-mode-btn">Reset View</button>
+        <select id="jump-to-person" class="jump-to-person">
+          <option value="">Jump to person…</option>
+        </select>
         <button id="btn-edit-mode" class="edit-mode-btn">Edit mode: Off</button>
         <button id="btn-add-person" class="add-person-btn hidden">+ Add Person</button>
         <a href="/admin.html" class="admin-link">Admin</a>
@@ -41,19 +44,20 @@
 
     <p id="status-banner" class="status-banner hidden"></p>
 
-    <div id="FamilyChart" class="f3"></div>
+    <div class="chart-area">
+      <div id="FamilyChart" class="f3"></div>
 
-    <!-- Person detail side panel — opens when a card is clicked -->
-    <div id="side-panel" class="side-panel hidden">
-      <button id="side-panel-close" class="side-panel-close">&times;</button>
-      <img id="side-panel-avatar" class="side-panel-avatar hidden" alt="" />
-      <h2 id="side-panel-title"></h2>
-      <p id="side-panel-identity" class="side-panel-meta"></p>
-      <p id="side-panel-birthday" class="side-panel-meta"></p>
-      <p id="side-panel-desc"></p>
-      <div class="gallery-scroll" id="side-panel-photos"></div>
+      <!-- Person detail side panel — docked, opens when a card is clicked -->
+      <div id="side-panel" class="side-panel hidden">
+        <button id="side-panel-close" class="side-panel-close">&times;</button>
+        <img id="side-panel-avatar" class="side-panel-avatar hidden" alt="" />
+        <h2 id="side-panel-title"></h2>
+        <p id="side-panel-identity" class="side-panel-meta"></p>
+        <p id="side-panel-birthday" class="side-panel-meta"></p>
+        <div id="side-panel-desc" class="side-panel-desc"></div>
+        <div class="gallery-scroll" id="side-panel-photos"></div>
+      </div>
     </div>
-    <div id="side-panel-backdrop" class="side-panel-backdrop hidden"></div>
 
     <!-- Add / Edit person modal -->
     <div id="edit-modal" class="modal hidden">
@@ -75,9 +79,9 @@
           </div>
 
           <div id="relation-fields" class="relation-fields-section">
-            <p class="relation-fields-label">Relationships to existing people (you can add more than one — e.g. child of both parents)</p>
+            <p class="relation-fields-label">Spouse(s) — use the Biological/Adoptive parent fields below for parent-child links</p>
             <div id="relations-list"></div>
-            <button type="button" id="add-relation-row-btn">+ Add relationship</button>
+            <button type="button" id="add-relation-row-btn">+ Add spouse</button>
           </div>
 
           <label>First name <input type="text" id="field-first-name" required /></label>
@@ -90,7 +94,10 @@
             </select>
           </label>
           <label>Gender identity (shown on card) <input type="text" id="field-gender-identity" placeholder="e.g. Woman, Man, Non-binary" /></label>
-          <label>Description <textarea id="field-description" rows="3"></textarea></label>
+          <label>Description
+            <textarea id="field-description" rows="5"></textarea>
+            <span class="field-hint">Markdown supported: **bold**, *italic*, - lists, [links](url)</span>
+          </label>
 
           <div class="photo-field">
             <label>Avatar photo (shown on the card)
@@ -109,7 +116,7 @@
 
           <div class="form-actions">
             <button type="button" id="edit-delete-btn" class="delete-btn hidden">Delete Person</button>
-            <button type="submit" id="edit-submit-btn">Submit for approval</button>
+            <button type="submit" id="edit-submit-btn">Submit</button>
           </div>
         </form>
       </div>
