@@ -55,6 +55,7 @@
         <h2 id="side-panel-title"></h2>
         <p id="side-panel-identity" class="side-panel-meta"></p>
         <p id="side-panel-birthday" class="side-panel-meta"></p>
+        <p id="side-panel-maiden" class="side-panel-meta"></p>
         <div id="side-panel-desc" class="side-panel-desc"></div>
         <div class="gallery-scroll" id="side-panel-photos"></div>
       </div>
@@ -85,8 +86,12 @@
           </div>
 
           <label>First name <input type="text" id="field-first-name" required /></label>
+          <label>Middle name <input type="text" id="field-middle-name" /></label>
           <label>Last name <input type="text" id="field-last-name" /></label>
+          <label>Maiden name <input type="text" id="field-maiden-name" placeholder="birth surname, if different" /></label>
+          <label>Suffix <input type="text" id="field-suffix" placeholder="e.g. Jr., Sr., III" /></label>
           <label>Birthday <input type="text" id="field-birthday" placeholder="e.g. 1985 or 1985-04-02" /></label>
+          <label>Date of death <input type="text" id="field-date-of-death" placeholder="leave blank if living" /></label>
           <label>Gender (for layout only)
             <select id="field-gender">
               <option value="M">M</option>

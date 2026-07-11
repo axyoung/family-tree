@@ -6,6 +6,7 @@ import DOMPurify from "dompurify";
 import { requestEditAccess } from "./editSession.js";
 import { openEditForm } from "./editForm.js";
 import { requireViewAccess, refetchPeople } from "./viewGate.js";
+import { formatFullName } from "./nameUtils.js";
 
 // ---------------------------------------------------------------------------
 // STATE
@@ -176,6 +177,10 @@ async function init() {
       const person = d.data?.data || {};
       const identity = person.gender_identity || "";
 
+      const lifespan = person.birthday || person.date_of_death
+        ? `${person.birthday || "?"}${person.date_of_death ? ` – ${person.date_of_death}` : ""}`
+        : "";
+
       return `
         <div class="card-inner">
           ${
@@ -184,9 +189,9 @@ async function init() {
               : `<div class="card-avatar card-avatar-placeholder"></div>`
           }
           <div class="card-text">
-            <div class="card-name">${person["first name"] || ""} ${person["last name"] || ""}</div>
+            <div class="card-name">${formatFullName(person)}</div>
             ${identity ? `<div class="card-identity">${identity}</div>` : ""}
-            ${person.birthday ? `<div class="card-birthday">${person.birthday}</div>` : ""}
+            ${lifespan ? `<div class="card-birthday">${lifespan}</div>` : ""}
           </div>
           ${editModeEnabled ? `<button class="card-edit-btn" data-person-id="${d.data?.id}">✏️</button>` : ""}
         </div>
@@ -230,19 +235,14 @@ async function init() {
 }
 
 function populateJumpToPerson() {
-  const sorted = [...familyData].sort((a, b) => {
-    const nameA = `${a.data["first name"] || ""} ${a.data["last name"] || ""}`.trim();
-    const nameB = `${b.data["first name"] || ""} ${b.data["last name"] || ""}`.trim();
-    return nameA.localeCompare(nameB);
-  });
+  const sorted = [...familyData].sort((a, b) =>
+    formatFullName(a.data).localeCompare(formatFullName(b.data))
+  );
   const select = document.getElementById("jump-to-person");
   select.innerHTML =
     `<option value="">Jump to person…</option>` +
     sorted
-      .map((p) => {
-        const label = `${p.data["first name"] || ""} ${p.data["last name"] || ""}`.trim() || p.id;
-        return `<option value="${p.id}">${label}</option>`;
-      })
+      .map((p) => `<option value="${p.id}">${formatFullName(p.data) || p.id}</option>`)
       .join("");
 }
 
@@ -265,6 +265,7 @@ const sidePanelAvatar = document.getElementById("side-panel-avatar");
 const sidePanelTitle = document.getElementById("side-panel-title");
 const sidePanelIdentity = document.getElementById("side-panel-identity");
 const sidePanelBirthday = document.getElementById("side-panel-birthday");
+const sidePanelMaiden = document.getElementById("side-panel-maiden");
 const sidePanelDesc = document.getElementById("side-panel-desc");
 const sidePanelPhotos = document.getElementById("side-panel-photos");
 
@@ -281,9 +282,12 @@ function openSidePanel(personId) {
     sidePanelAvatar.classList.add("hidden");
   }
 
-  sidePanelTitle.textContent = `${person["first name"] || ""} ${person["last name"] || ""}`.trim();
+  sidePanelTitle.textContent = formatFullName(person);
   sidePanelIdentity.textContent = person.gender_identity || "";
-  sidePanelBirthday.textContent = person.birthday || "";
+  sidePanelBirthday.textContent = person.birthday || person.date_of_death
+    ? `${person.birthday || "?"}${person.date_of_death ? ` – ${person.date_of_death}` : ""}`
+    : "";
+  sidePanelMaiden.textContent = person.maiden_name ? `Maiden name: ${person.maiden_name}` : "";
   sidePanelDesc.innerHTML = DOMPurify.sanitize(marked.parse(person.description || ""));
 
   sidePanelPhotos.innerHTML = (person.photos || [])

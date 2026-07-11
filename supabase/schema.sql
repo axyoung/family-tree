@@ -31,6 +31,7 @@ create table pending_edits (
   -- BOTH a biological and adoptive parent at once:
   -- [{"type":"child","person_id":"mom_bio"},{"type":"child","person_id":"mom_adoptive"}]
   relations jsonb,
+  relations_remove jsonb, -- relations to unlink (e.g. removing a spouse)
   -- legacy single-relation columns, kept for backward compatibility with
   -- any pending rows created before multi-relation support existed
   relation_to_id text,
@@ -175,7 +176,8 @@ create or replace function apply_add_or_update(
   p_edit_type text,
   p_person_id text,
   p_payload jsonb,
-  p_relations jsonb
+  p_relations jsonb,
+  p_relations_remove jsonb default '[]'::jsonb
 ) returns void
 language plpgsql
 security definer
@@ -200,9 +202,7 @@ begin
     values (p_person_id, p_payload->'data', p_payload->'rels');
   end if;
 
-  -- Apply relations (currently just spouse links) for BOTH add and update.
-  -- Idempotent: skips if the link already exists, so resubmitting the same
-  -- form twice doesn't create duplicate entries.
+  -- ADD relations (idempotent — skips if already linked)
   for rel in select * from jsonb_array_elements(coalesce(p_relations, '[]'::jsonb)) loop
     field_name := case rel->>'type'
       when 'child' then 'children' when 'parent' then 'parents' when 'spouse' then 'spouses' else null
@@ -229,6 +229,34 @@ begin
       end if;
     end if;
   end loop;
+
+  -- REMOVE relations (strips the link on both sides — e.g. removing a spouse)
+  for rel in select * from jsonb_array_elements(coalesce(p_relations_remove, '[]'::jsonb)) loop
+    field_name := case rel->>'type'
+      when 'child' then 'children' when 'parent' then 'parents' when 'spouse' then 'spouses' else null
+    end;
+    reciprocal_field := case rel->>'type'
+      when 'child' then 'parents' when 'parent' then 'children' when 'spouse' then 'spouses' else null
+    end;
+
+    if field_name is not null and rel->>'person_id' is not null then
+      select rels into existing_rels from people where id = rel->>'person_id';
+      if existing_rels is not null then
+        update people set rels = jsonb_set(
+          existing_rels, array[field_name],
+          (select coalesce(jsonb_agg(x), '[]'::jsonb) from jsonb_array_elements_text(coalesce(existing_rels->field_name,'[]'::jsonb)) x where x <> p_person_id)
+        ) where id = rel->>'person_id';
+      end if;
+
+      select rels into existing_rels from people where id = p_person_id;
+      if existing_rels is not null then
+        update people set rels = jsonb_set(
+          existing_rels, array[reciprocal_field],
+          (select coalesce(jsonb_agg(x), '[]'::jsonb) from jsonb_array_elements_text(coalesce(existing_rels->reciprocal_field,'[]'::jsonb)) x where x <> (rel->>'person_id'))
+        ) where id = p_person_id;
+      end if;
+    end if;
+  end loop;
 end;
 $$;
 
@@ -246,6 +274,7 @@ create or replace function submit_pending_edit(
   p_payload jsonb,
   p_password text default null,
   p_relations jsonb default null,
+  p_relations_remove jsonb default null,
   p_relation_to_id text default null,
   p_relation_type text default null,
   p_submitted_by text default null
@@ -277,17 +306,17 @@ begin
     return v_id;
   end if;
 
-  -- add/update: apply now
   perform apply_add_or_update(
     p_edit_type, p_person_id, p_payload,
     coalesce(p_relations, case when p_relation_to_id is not null
       then jsonb_build_array(jsonb_build_object('type', p_relation_type, 'person_id', p_relation_to_id))
-      else '[]'::jsonb end)
+      else '[]'::jsonb end),
+    coalesce(p_relations_remove, '[]'::jsonb)
   );
 
   -- keep a history record, already resolved
-  insert into pending_edits (edit_type, person_id, payload, relations, relation_to_id, relation_type, submitted_by, status)
-  values (p_edit_type, p_person_id, p_payload, p_relations, p_relation_to_id, p_relation_type, p_submitted_by, 'approved')
+  insert into pending_edits (edit_type, person_id, payload, relations, relations_remove, relation_to_id, relation_type, submitted_by, status)
+  values (p_edit_type, p_person_id, p_payload, p_relations, p_relations_remove, p_relation_to_id, p_relation_type, p_submitted_by, 'approved')
   returning id into v_id;
 
   return v_id;

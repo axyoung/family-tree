@@ -317,39 +317,44 @@ body {
   .toolbar {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
-    padding: 10px 12px;
+    gap: 6px;
+    padding: 8px 10px;
   }
   .toolbar h1 {
-    font-size: 16px;
+    font-size: 14px;
     text-align: center;
   }
   .toolbar-controls {
     justify-content: center;
-    gap: 8px;
+    gap: 5px;
+    row-gap: 6px;
   }
   .lineage-toggle {
-    font-size: 12px;
-    gap: 6px;
+    font-size: 11px;
+    gap: 4px;
   }
   .toggle-btn,
   .edit-mode-btn,
   .add-person-btn,
   .jump-to-person {
-    padding: 5px 10px;
-    font-size: 12px;
+    padding: 4px 8px;
+    font-size: 11px;
   }
   .jump-to-person {
-    max-width: 130px;
+    max-width: 90px;
+  }
+  .admin-link {
+    font-size: 11px;
   }
 
   /* Side panels (view + edit/add) take the whole screen on mobile, since
      there's no room to show both the tree and a docked panel at once. */
   .side-panel {
-    position: fixed;
-    inset: 0;
+    position: fixed !important;
+    inset: 0 !important;
     width: 100% !important;
-    max-width: 100vw;
+    max-width: 100vw !important;
+    height: 100vh !important;
     z-index: 1000;
     padding: 16px;
     padding-top: 56px; /* room for the close button */

@@ -4,16 +4,12 @@ An interactive and secure digital archive and lineage tracker built specifically
 
 Built with performance, privacy, and seamless interactivity in mind, the platform allows authorized family members to explore their heritage and securely contribute updates to the lineage.
 
+The Family Tree website itself is currently hosted on the site: https://family-tree-two-mauve.vercel.app/.
+
 ---
 
 ## TO IMPLEMENT:
-* make it so the only edits that need to be admin reviewed is if you delete someone
-* make it so the popout when clicking a card is larger and is actually part of the screen (same color and layer), so it shifts stuff over and you can still click around
-* make it so the description section you can add markdown
-* is it correct that when adding a person you can indicate that you are the child of someone and also indicate the bio/adopt parent
-* make it so if you are logged in admin you can enter edit mode without password
-* create an indicator to show that there are more nodes connected to the leaf nodes with hidden relatives (example here https://donatso.github.io/family-chart-doc/examples/v2/6-svg-cards)
-* ask for some tests to do so i can verify all logic
+* suggestions from users
 
 ---
 

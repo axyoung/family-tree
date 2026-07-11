@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { deleteAllPhotosForPerson } from "./photoUpload.js";
+import { formatFullName } from "./nameUtils.js";
 import "./style.css";
 
 const loginSection = document.getElementById("login-section");
@@ -83,7 +84,7 @@ async function loadPendingEdits() {
   if (relationIds.size) {
     const { data: people } = await supabase.from("people").select("id, data").in("id", [...relationIds]);
     names = Object.fromEntries(
-      (people || []).map((p) => [p.id, `${p.data["first name"] || ""} ${p.data["last name"] || ""}`.trim()])
+      (people || []).map((p) => [p.id, formatFullName(p.data)])
     );
   }
 
@@ -106,7 +107,7 @@ async function loadPendingEdits() {
     }
 
     const d = edit.payload.data || {};
-    const name = `${d["first name"] || ""} ${d["last name"] || ""}`.trim();
+    const name = formatFullName(d);
     const photoCount = d.photos?.length || 0;
 
     const relationsList = edit.relations?.length

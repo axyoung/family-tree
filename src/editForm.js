@@ -1,5 +1,6 @@
 import { uploadPhotos, deletePhotos } from "./photoUpload.js";
 import { submitPendingEdit } from "./editSession.js";
+import { formatFullName } from "./nameUtils.js";
 
 const modal = document.getElementById("edit-modal");
 const form = document.getElementById("edit-form");
@@ -12,8 +13,12 @@ const bioParent2Sel = document.getElementById("field-bio-parent-2");
 const adoptiveParent1Sel = document.getElementById("field-adoptive-parent-1");
 const adoptiveParent2Sel = document.getElementById("field-adoptive-parent-2");
 const firstNameInput = document.getElementById("field-first-name");
+const middleNameInput = document.getElementById("field-middle-name");
 const lastNameInput = document.getElementById("field-last-name");
+const maidenNameInput = document.getElementById("field-maiden-name");
+const suffixInput = document.getElementById("field-suffix");
 const birthdayInput = document.getElementById("field-birthday");
+const dateOfDeathInput = document.getElementById("field-date-of-death");
 const genderSelect = document.getElementById("field-gender");
 const identityInput = document.getElementById("field-gender-identity");
 const descriptionInput = document.getElementById("field-description");
@@ -31,13 +36,14 @@ let currentMode = "add"; // "add" | "update"
 let currentPersonId = null;
 let currentPersonData = null;
 let currentPersonRels = null;
+let originalSpouseIds = []; // spouses at form-open time, to diff against on submit
 let existingPhotos = [];
 let stagedFiles = [];
 let existingAvatarUrl = null;
 let stagedAvatarFile = null;
 let photosToDeleteFromStorage = []; // existing photo/avatar objects removed this session
 let peopleListRef = [];
-let relationRows = []; // [{ type: 'child'|'parent'|'spouse', personId: string }]
+let relationRows = []; // [{ type: 'spouse', personId: string }]
 
 /**
  * Opens the modal.
@@ -63,17 +69,18 @@ export function openEditForm({ mode, person = null, peopleList = [], onSubmitted
   peopleListRef = peopleList;
   relationRows = [];
 
-  titleEl.textContent = mode === "add" ? "Add Person" : `Edit ${person?.data?.["first name"] || "Person"}`;
+  titleEl.textContent = mode === "add" ? "Add Person" : `Edit ${formatFullName(currentPersonData) || "Person"}`;
   deleteBtn.classList.toggle("hidden", mode !== "update");
 
   if (mode === "add") {
     relationRows = [{ type: "spouse", personId: "" }];
+    originalSpouseIds = [];
   } else {
     // pre-fill with existing spouses so they show as already-selected;
-    // resubmitting is harmless (idempotent on the server), and removing a
-    // row here just means "don't add this one" — it won't unlink an
-    // existing spouse (that still requires a direct DB edit for now)
-    relationRows = (currentPersonRels.spouses || []).map((id) => ({ type: "spouse", personId: id }));
+    // removing a row here now DOES unlink the spouse on submit (diffed
+    // against originalSpouseIds below)
+    originalSpouseIds = [...(currentPersonRels.spouses || [])];
+    relationRows = originalSpouseIds.map((id) => ({ type: "spouse", personId: id }));
   }
   renderRelationRows();
   populateParentDropdowns(peopleList, currentPersonId);
@@ -85,12 +92,16 @@ export function openEditForm({ mode, person = null, peopleList = [], onSubmitted
   adoptiveParent1Sel.value = adoptive[0] || "";
   adoptiveParent2Sel.value = adoptive[1] || "";
 
-  firstNameInput.value = person?.data?.["first name"] || "";
-  lastNameInput.value = person?.data?.["last name"] || "";
-  birthdayInput.value = person?.data?.birthday || "";
-  genderSelect.value = person?.data?.gender || "M";
-  identityInput.value = person?.data?.gender_identity || "";
-  descriptionInput.value = person?.data?.description || "";
+  firstNameInput.value = currentPersonData["first name"] || "";
+  middleNameInput.value = currentPersonData["middle name"] || "";
+  lastNameInput.value = currentPersonData["last name"] || "";
+  maidenNameInput.value = currentPersonData.maiden_name || "";
+  suffixInput.value = currentPersonData.suffix || "";
+  birthdayInput.value = currentPersonData.birthday || "";
+  dateOfDeathInput.value = currentPersonData.date_of_death || "";
+  genderSelect.value = currentPersonData.gender || "M";
+  identityInput.value = currentPersonData.gender_identity || "";
+  descriptionInput.value = currentPersonData.description || "";
   submittedByInput.value = "";
 
   renderExistingPhotos();
@@ -116,10 +127,7 @@ function populateParentDropdowns(peopleList, excludeId) {
     `<option value="">— none —</option>` +
     peopleList
       .filter((p) => p.id !== excludeId)
-      .map((p) => {
-        const label = `${p.data["first name"] || ""} ${p.data["last name"] || ""}`.trim() || p.id;
-        return `<option value="${p.id}">${label}</option>`;
-      })
+      .map((p) => `<option value="${p.id}">${formatFullName(p.data) || p.id}</option>`)
       .join("");
 
   [bioParent1Sel, bioParent2Sel, adoptiveParent1Sel, adoptiveParent2Sel].forEach((sel) => {
@@ -127,12 +135,27 @@ function populateParentDropdowns(peopleList, excludeId) {
   });
 }
 
+// When Parent 1 is chosen and Parent 2 is still empty, auto-fill Parent 2
+// with one of Parent 1's existing spouses (if they have one in the data).
+function autofillOtherParent(parent1Sel, parent2Sel) {
+  parent1Sel.addEventListener("change", () => {
+    if (parent2Sel.value) return; // don't override an existing choice
+    const chosen = peopleListRef.find((p) => p.id === parent1Sel.value);
+    const spouseId = chosen?.rels?.spouses?.[0];
+    if (spouseId && [...parent2Sel.options].some((o) => o.value === spouseId)) {
+      parent2Sel.value = spouseId;
+    }
+  });
+}
+autofillOtherParent(bioParent1Sel, bioParent2Sel);
+autofillOtherParent(adoptiveParent1Sel, adoptiveParent2Sel);
+
 // ---------------------------------------------------------------------------
-// Relations list (multi-relationship support)
+// Relations list (spouse links)
 // ---------------------------------------------------------------------------
 function renderRelationRows() {
   if (!relationRows.length) {
-    relationsListEl.innerHTML = `<p class="no-relations-note">No relation — this will be a standalone / first person.</p>`;
+    relationsListEl.innerHTML = `<p class="no-relations-note">No spouse recorded.</p>`;
     return;
   }
 
@@ -140,16 +163,15 @@ function renderRelationRows() {
     .map((row, i) => {
       const peopleOptions = peopleListRef
         .map((p) => {
-          const label = `${p.data["first name"] || ""} ${p.data["last name"] || ""}`.trim() || p.id;
           const selected = p.id === row.personId ? "selected" : "";
-          return `<option value="${p.id}" ${selected}>${label}</option>`;
+          return `<option value="${p.id}" ${selected}>${formatFullName(p.data) || p.id}</option>`;
         })
         .join("");
 
       return `
         <div class="relation-row" data-index="${i}">
           <span class="relation-row-label">Spouse of</span>
-          <select class="relation-person-select" data-index="${i}">
+          <select class="relation-person-select" name="relation-person-${i}" data-index="${i}">
             <option value="">— choose a person —</option>
             ${peopleOptions}
           </select>
@@ -178,7 +200,7 @@ addRelationRowBtn.addEventListener("click", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Photos / avatar (unchanged from before)
+// Photos / avatar
 // ---------------------------------------------------------------------------
 function renderExistingPhotos() {
   existingPhotosEl.innerHTML = existingPhotos
@@ -186,7 +208,7 @@ function renderExistingPhotos() {
       (photo, i) => `
         <div class="existing-photo">
           <img src="${photo.url}" alt="${photo.caption || ""}" />
-          <input type="text" class="existing-caption-input" placeholder="Caption" data-index="${i}" value="${photo.caption || ""}" />
+          <input type="text" class="existing-caption-input" name="existing-caption-${i}" placeholder="Caption" data-index="${i}" value="${photo.caption || ""}" />
           <button type="button" class="remove-photo-btn" data-index="${i}">Remove</button>
         </div>
       `
@@ -214,7 +236,7 @@ function renderStagedPhotos() {
       (item, i) => `
         <div class="staged-photo">
           <span>${item.file.name}</span>
-          <input type="text" placeholder="Caption" data-index="${i}" class="staged-caption-input" value="${item.caption}" />
+          <input type="text" placeholder="Caption" name="staged-caption-${i}" data-index="${i}" class="staged-caption-input" value="${item.caption}" />
           <button type="button" class="remove-staged-btn" data-index="${i}">Remove</button>
         </div>
       `
@@ -334,8 +356,12 @@ async function handleSubmit(onSubmitted) {
     const data = {
       ...currentPersonData,
       "first name": firstNameInput.value.trim(),
+      "middle name": middleNameInput.value.trim(),
       "last name": lastNameInput.value.trim(),
+      maiden_name: maidenNameInput.value.trim(),
+      suffix: suffixInput.value.trim(),
       birthday: birthdayInput.value.trim(),
+      date_of_death: dateOfDeathInput.value.trim(),
       gender: genderSelect.value,
       gender_identity: identityInput.value.trim(),
       description: descriptionInput.value.trim(),
@@ -347,7 +373,13 @@ async function handleSubmit(onSubmitted) {
 
     const rels = currentMode === "add" ? { spouses: [], children: [], parents: [] } : currentPersonRels;
 
-    const relations = relationRows.filter((r) => r.personId).map((r) => ({ type: r.type, person_id: r.personId }));
+    const currentSpouseIds = relationRows.filter((r) => r.personId).map((r) => r.personId);
+    const relations = currentSpouseIds
+      .filter((id) => !originalSpouseIds.includes(id)) // newly added
+      .map((id) => ({ type: "spouse", person_id: id }));
+    const relationsRemove = originalSpouseIds
+      .filter((id) => !currentSpouseIds.includes(id)) // removed this session
+      .map((id) => ({ type: "spouse", person_id: id }));
 
     submitBtn.textContent = "Submitting…";
 
@@ -356,6 +388,7 @@ async function handleSubmit(onSubmitted) {
       personId,
       payload: { data, rels },
       relations,
+      relationsRemove,
       submittedBy: submittedByInput.value.trim(),
     });
 
@@ -385,7 +418,7 @@ async function handleDelete(onDeleted) {
     return;
   }
 
-  const name = `${currentPersonData?.["first name"] || ""} ${currentPersonData?.["last name"] || ""}`.trim();
+  const name = formatFullName(currentPersonData);
   if (!confirm(`Submit a request to delete ${name || "this person"}? An admin must approve it.`)) return;
 
   deleteBtn.disabled = true;
