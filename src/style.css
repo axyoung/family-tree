@@ -209,6 +209,7 @@ body {
   border: 1px solid #444;
   background: #16181a;
   color: #eee;
+  font-size: 16px;
 }
 .view-gate-box button {
   padding: 10px;
@@ -310,6 +311,56 @@ body {
 }
 .delete-btn:hover {
   background: #fbeaea;
+}
+
+@media (max-width: 640px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .toolbar h1 {
+    font-size: 16px;
+    text-align: center;
+  }
+  .toolbar-controls {
+    justify-content: center;
+    gap: 8px;
+  }
+  .lineage-toggle {
+    font-size: 12px;
+    gap: 6px;
+  }
+  .toggle-btn,
+  .edit-mode-btn,
+  .add-person-btn,
+  .jump-to-person {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+  .jump-to-person {
+    max-width: 130px;
+  }
+
+  /* Side panels (view + edit/add) take the whole screen on mobile, since
+     there's no room to show both the tree and a docked panel at once. */
+  .side-panel {
+    position: fixed;
+    inset: 0;
+    width: 100% !important;
+    max-width: 100vw;
+    z-index: 1000;
+    padding: 16px;
+    padding-top: 56px; /* room for the close button */
+  }
+  .side-panel-resize-handle {
+    display: none; /* dragging doesn't make sense at full screen */
+  }
+  .relation-row,
+  .lineage-parent-row {
+    flex-wrap: wrap;
+  }
 }
 
 /* --- Person detail side panel — docked flex sidebar, not an overlay --- */
@@ -495,7 +546,7 @@ body {
   padding: 8px 10px;
   border: 1px solid #444;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 16px;
   font-family: inherit;
   background: #2a2d31;
   color: #eee;
@@ -624,6 +675,7 @@ body {
   padding: 8px 10px;
   border: 1px solid #ccc;
   border-radius: 6px;
+  font-size: 16px;
 }
 .admin-panel button {
   padding: 8px 16px;
