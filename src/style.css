@@ -355,9 +355,14 @@ body {
     width: 100% !important;
     max-width: 100vw !important;
     height: 100vh !important;
+    height: 100dvh !important; /* accounts for mobile browser toolbars showing/hiding */
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch; /* fixes broken/stuck scroll on older iOS Safari */
     z-index: 1000;
     padding: 16px;
     padding-top: 56px; /* room for the close button */
+    padding-bottom: 48px; /* room so the Submit button isn't flush against the edge */
+    box-sizing: border-box;
   }
   .side-panel-resize-handle {
     display: none; /* dragging doesn't make sense at full screen */
@@ -396,6 +401,19 @@ body {
 }
 .side-panel.hidden {
   display: none;
+}
+
+.side-panel-edit-btn {
+  position: absolute;
+  top: 12px;
+  right: 48px;
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #3b6e5b;
+  background: #24382f;
+  color: #7fbfa4;
+  cursor: pointer;
 }
 
 .side-panel-close {
@@ -529,12 +547,14 @@ body {
   color: #888;
 }
 
-#edit-form {
+#edit-form,
+#quick-edit-form {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-#edit-form label {
+#edit-form label,
+#quick-edit-form label {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -546,7 +566,9 @@ body {
 #edit-form input[type="email"],
 #edit-form input[type="password"],
 #edit-form select,
-#edit-form textarea {
+#edit-form textarea,
+#quick-edit-form input[type="text"],
+#quick-edit-form textarea {
   font-weight: normal;
   padding: 8px 10px;
   border: 1px solid #444;
@@ -634,7 +656,8 @@ body {
   border-radius: 4px;
 }
 
-#edit-submit-btn {
+#edit-submit-btn,
+#qe-submit-btn {
   padding: 10px 20px;
   border: none;
   border-radius: 6px;
@@ -643,7 +666,8 @@ body {
   font-size: 14px;
   cursor: pointer;
 }
-#edit-submit-btn:disabled {
+#edit-submit-btn:disabled,
+#qe-submit-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

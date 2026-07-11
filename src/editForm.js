@@ -46,7 +46,9 @@ let peopleListRef = [];
 let relationRows = []; // [{ type: 'spouse', personId: string }]
 
 /**
- * Opens the modal.
+ * Opens the FULL edit/add panel (parents, spouse, delete — everything).
+ * This is intentionally separate from the lightweight quick-edit in the
+ * view side panel, which only covers basic fields.
  * @param {"add"|"update"} mode
  * @param {object|null} person - existing person ({id, data, rels}) when editing, null when adding
  * @param {Array} peopleList - full people array, used for the relation dropdowns
@@ -76,9 +78,6 @@ export function openEditForm({ mode, person = null, peopleList = [], onSubmitted
     relationRows = [{ type: "spouse", personId: "" }];
     originalSpouseIds = [];
   } else {
-    // pre-fill with existing spouses so they show as already-selected;
-    // removing a row here now DOES unlink the spouse on submit (diffed
-    // against originalSpouseIds below)
     originalSpouseIds = [...(currentPersonRels.spouses || [])];
     relationRows = originalSpouseIds.map((id) => ({ type: "spouse", personId: id }));
   }
@@ -127,6 +126,7 @@ function populateParentDropdowns(peopleList, excludeId) {
     `<option value="">— none —</option>` +
     peopleList
       .filter((p) => p.id !== excludeId)
+      .sort((a, b) => formatFullName(a.data).localeCompare(formatFullName(b.data)))
       .map((p) => `<option value="${p.id}">${formatFullName(p.data) || p.id}</option>`)
       .join("");
 
@@ -139,7 +139,7 @@ function populateParentDropdowns(peopleList, excludeId) {
 // with one of Parent 1's existing spouses (if they have one in the data).
 function autofillOtherParent(parent1Sel, parent2Sel) {
   parent1Sel.addEventListener("change", () => {
-    if (parent2Sel.value) return; // don't override an existing choice
+    if (parent2Sel.value) return;
     const chosen = peopleListRef.find((p) => p.id === parent1Sel.value);
     const spouseId = chosen?.rels?.spouses?.[0];
     if (spouseId && [...parent2Sel.options].some((o) => o.value === spouseId)) {
@@ -161,7 +161,8 @@ function renderRelationRows() {
 
   relationsListEl.innerHTML = relationRows
     .map((row, i) => {
-      const peopleOptions = peopleListRef
+      const peopleOptions = [...peopleListRef]
+        .sort((a, b) => formatFullName(a.data).localeCompare(formatFullName(b.data)))
         .map((p) => {
           const selected = p.id === row.personId ? "selected" : "";
           return `<option value="${p.id}" ${selected}>${formatFullName(p.data) || p.id}</option>`;
@@ -375,10 +376,10 @@ async function handleSubmit(onSubmitted) {
 
     const currentSpouseIds = relationRows.filter((r) => r.personId).map((r) => r.personId);
     const relations = currentSpouseIds
-      .filter((id) => !originalSpouseIds.includes(id)) // newly added
+      .filter((id) => !originalSpouseIds.includes(id))
       .map((id) => ({ type: "spouse", person_id: id }));
     const relationsRemove = originalSpouseIds
-      .filter((id) => !currentSpouseIds.includes(id)) // removed this session
+      .filter((id) => !currentSpouseIds.includes(id))
       .map((id) => ({ type: "spouse", person_id: id }));
 
     submitBtn.textContent = "Submitting…";

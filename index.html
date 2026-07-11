@@ -51,16 +51,63 @@
       <div id="side-panel" class="side-panel hidden">
         <div id="side-panel-resize-handle" class="side-panel-resize-handle"></div>
         <button id="side-panel-close" class="side-panel-close">&times;</button>
-        <img id="side-panel-avatar" class="side-panel-avatar hidden" alt="" />
-        <h2 id="side-panel-title"></h2>
-        <p id="side-panel-identity" class="side-panel-meta"></p>
-        <p id="side-panel-birthday" class="side-panel-meta"></p>
-        <p id="side-panel-maiden" class="side-panel-meta"></p>
-        <div id="side-panel-desc" class="side-panel-desc"></div>
-        <div class="gallery-scroll" id="side-panel-photos"></div>
+        <button id="side-panel-edit-btn" class="side-panel-edit-btn hidden">✏️ Edit</button>
+
+        <!-- VIEW MODE -->
+        <div id="panel-view">
+          <img id="side-panel-avatar" class="side-panel-avatar hidden" alt="" />
+          <h2 id="side-panel-title"></h2>
+          <p id="side-panel-identity" class="side-panel-meta"></p>
+          <p id="side-panel-birthday" class="side-panel-meta"></p>
+          <p id="side-panel-maiden" class="side-panel-meta"></p>
+          <div id="side-panel-desc" class="side-panel-desc"></div>
+          <div class="gallery-scroll" id="side-panel-photos"></div>
+        </div>
+
+        <!-- QUICK EDIT MODE — basic fields only. No parents/spouse here;
+             use the full Edit form (pencil icon on the card) for those. -->
+        <div id="panel-quick-edit" class="hidden">
+          <form id="quick-edit-form">
+            <label>First name <input type="text" id="qe-first-name" required /></label>
+            <label>Middle name <input type="text" id="qe-middle-name" /></label>
+            <label>Last name <input type="text" id="qe-last-name" /></label>
+            <label>Maiden name <input type="text" id="qe-maiden-name" placeholder="birth surname, if different" /></label>
+            <label>Suffix <input type="text" id="qe-suffix" placeholder="e.g. Jr., Sr., III" /></label>
+            <label>Birthday <input type="text" id="qe-birthday" placeholder="e.g. 1985 or 1985-04-02" /></label>
+            <label>Date of death <input type="text" id="qe-date-of-death" placeholder="leave blank if living" /></label>
+            <label>Gender identity (shown on card) <input type="text" id="qe-gender-identity" placeholder="e.g. Woman, Man, Non-binary" /></label>
+            <label>Description
+              <textarea id="qe-description" rows="5"></textarea>
+              <span class="field-hint">Markdown supported: **bold**, *italic*, - lists, [links](url)</span>
+            </label>
+
+            <div class="photo-field">
+              <label>Avatar photo (shown on the card)
+                <input type="file" id="qe-avatar" accept="image/*" />
+              </label>
+              <div id="qe-existing-avatar" class="existing-photos"></div>
+            </div>
+
+            <div class="photo-field">
+              <label>Add gallery photos <input type="file" id="qe-photos" accept="image/*" multiple /></label>
+              <div id="qe-existing-photos" class="existing-photos"></div>
+              <div id="qe-staged-photos" class="staged-photos"></div>
+            </div>
+
+            <p class="field-hint">Need to change parents, spouse, or delete this person? Use the full edit form (✏️ button on their card in the tree) instead.</p>
+
+            <label>Your name (optional, so the admin knows who submitted this) <input type="text" id="qe-submitted-by" /></label>
+
+            <div class="form-actions">
+              <button type="submit" id="qe-submit-btn">Submit</button>
+            </div>
+          </form>
+        </div>
       </div>
 
-      <!-- Add / Edit person panel — same docked style as the description panel -->
+      <!-- Add / Edit person panel (full form: parents, spouse, delete) —
+           same docked style as the description panel, but kept entirely
+           separate from the lightweight quick-edit above. -->
       <div id="edit-modal" class="side-panel hidden">
         <div id="edit-modal-resize-handle" class="side-panel-resize-handle"></div>
         <button id="edit-close" class="side-panel-close">&times;</button>

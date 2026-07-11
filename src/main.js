@@ -7,6 +7,7 @@ import { requestEditAccess } from "./editSession.js";
 import { openEditForm } from "./editForm.js";
 import { requireViewAccess, refetchPeople } from "./viewGate.js";
 import { formatFullName } from "./nameUtils.js";
+import { openQuickEdit, isQuickEditActive, saveQuickEditIfActive } from "./quickEditPanel.js";
 
 // ---------------------------------------------------------------------------
 // STATE
@@ -268,12 +269,19 @@ const sidePanelBirthday = document.getElementById("side-panel-birthday");
 const sidePanelMaiden = document.getElementById("side-panel-maiden");
 const sidePanelDesc = document.getElementById("side-panel-desc");
 const sidePanelPhotos = document.getElementById("side-panel-photos");
+const sidePanelEditBtn = document.getElementById("side-panel-edit-btn");
+
+let currentSidePanelPersonId = null;
 
 function openSidePanel(personId) {
   const person = familyData.find((p) => p.id === personId)?.data;
   if (!person) return;
 
+  currentSidePanelPersonId = personId;
+
   document.getElementById("edit-modal")?.classList.add("hidden");
+  document.getElementById("panel-quick-edit")?.classList.add("hidden");
+  document.getElementById("panel-view")?.classList.remove("hidden");
 
   if (person.avatar) {
     sidePanelAvatar.src = person.avatar;
@@ -301,14 +309,31 @@ function openSidePanel(personId) {
     )
     .join("");
 
+  sidePanelEditBtn.classList.toggle("hidden", !editModeEnabled);
   sidePanel.classList.remove("hidden");
 }
+
+sidePanelEditBtn.addEventListener("click", () => {
+  const person = familyData.find((p) => p.id === currentSidePanelPersonId);
+  if (!person) return;
+  openQuickEdit(person, async () => {
+    showStatus("Saved.");
+    await refreshAfterEdit();
+    openSidePanel(currentSidePanelPersonId); // refresh the view with the new data
+  });
+});
 
 function refitTree() {
   if (f3Chart) f3Chart.updateTree({ tree_position: "fit" });
 }
 
-document.getElementById("side-panel-close").addEventListener("click", () => {
+document.getElementById("side-panel-close").addEventListener("click", async () => {
+  if (isQuickEditActive()) {
+    await saveQuickEditIfActive(async () => {
+      showStatus("Saved.");
+      await refreshAfterEdit();
+    });
+  }
   sidePanel.classList.add("hidden");
   requestAnimationFrame(refitTree);
 });
