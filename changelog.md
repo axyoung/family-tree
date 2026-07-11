@@ -112,3 +112,7 @@
 - Changed all dropdowns to be sorted into alphabetical order
 - Updated the side panel to add an Edit button when in Editing mode. This will allow for editing directly from the side panel
 - Fix mobile issue where can't scroll down to submit button
+
+## v3.1 — Remove quick edit autosave and Relationship listing
+- Autosave removed: closing the panel while quick-editing now just discards changes and returns to view — only the explicit Submit button saves.
+- Relationships listed in the side panel: Parents, Spouse(s), Siblings, and Step-siblings now show under the photo gallery, each name clickable to jump straight to that person. 

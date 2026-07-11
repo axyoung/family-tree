@@ -7,7 +7,7 @@ import { requestEditAccess } from "./editSession.js";
 import { openEditForm } from "./editForm.js";
 import { requireViewAccess, refetchPeople } from "./viewGate.js";
 import { formatFullName } from "./nameUtils.js";
-import { openQuickEdit, isQuickEditActive, saveQuickEditIfActive } from "./quickEditPanel.js";
+import { openQuickEdit, isQuickEditActive, cancelQuickEdit } from "./quickEditPanel.js";
 
 // ---------------------------------------------------------------------------
 // STATE
@@ -273,6 +273,58 @@ const sidePanelEditBtn = document.getElementById("side-panel-edit-btn");
 
 let currentSidePanelPersonId = null;
 
+// Computes this person's parents/spouses/siblings/step-siblings under the
+// CURRENT lineage mode, so the listing matches what the toggle is showing.
+function computeRelationships(personId) {
+  const treeData = buildTreeData(currentLineageMode);
+  const byId = new Map(treeData.map((p) => [p.id, p]));
+  const person = byId.get(personId);
+  if (!person) return { parents: [], spouses: [], siblings: [], stepSiblings: [] };
+
+  const parentIds = person.rels.parents || [];
+  const spouseIds = person.rels.spouses || [];
+
+  const siblingIds = new Set();
+  treeData.forEach((p) => {
+    if (p.id === personId) return;
+    if ((p.rels.parents || []).some((pid) => parentIds.includes(pid))) siblingIds.add(p.id);
+  });
+
+  // Step-siblings: children of one of this person's parent's OTHER spouses
+  // (a step-parent), who aren't already a full/half sibling.
+  const stepParentIds = new Set();
+  parentIds.forEach((pid) => {
+    (byId.get(pid)?.rels.spouses || []).forEach((sid) => {
+      if (!parentIds.includes(sid)) stepParentIds.add(sid);
+    });
+  });
+  const stepSiblingIds = new Set();
+  stepParentIds.forEach((spid) => {
+    (byId.get(spid)?.rels.children || []).forEach((cid) => {
+      if (cid !== personId && !siblingIds.has(cid)) stepSiblingIds.add(cid);
+    });
+  });
+
+  const toPeople = (ids) => [...ids].map((id) => byId.get(id)).filter(Boolean);
+  return {
+    parents: toPeople(parentIds),
+    spouses: toPeople(spouseIds),
+    siblings: toPeople(siblingIds),
+    stepSiblings: toPeople(stepSiblingIds),
+  };
+}
+
+function renderRelationshipsList(label, people) {
+  if (!people.length) return "";
+  const links = people
+    .map(
+      (p) =>
+        `<button type="button" class="relationship-link" data-person-id="${p.id}">${formatFullName(p.data) || p.id}</button>`
+    )
+    .join(", ");
+  return `<p class="side-panel-relationship-row"><strong>${label}:</strong> ${links}</p>`;
+}
+
 function openSidePanel(personId) {
   const person = familyData.find((p) => p.id === personId)?.data;
   if (!person) return;
@@ -309,6 +361,23 @@ function openSidePanel(personId) {
     )
     .join("");
 
+  const rel = computeRelationships(personId);
+  const relationshipsEl = document.getElementById("side-panel-relationships");
+  relationshipsEl.innerHTML =
+    renderRelationshipsList("Parents", rel.parents) +
+    renderRelationshipsList("Spouse(s)", rel.spouses) +
+    renderRelationshipsList("Siblings", rel.siblings) +
+    renderRelationshipsList("Step-siblings", rel.stepSiblings);
+
+  relationshipsEl.querySelectorAll(".relationship-link").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.personId;
+      f3Chart.updateMainId(id);
+      openSidePanel(id);
+      requestAnimationFrame(() => f3Chart.updateTree({ tree_position: "fit" }));
+    });
+  });
+
   sidePanelEditBtn.classList.toggle("hidden", !editModeEnabled);
   sidePanel.classList.remove("hidden");
 }
@@ -327,12 +396,9 @@ function refitTree() {
   if (f3Chart) f3Chart.updateTree({ tree_position: "fit" });
 }
 
-document.getElementById("side-panel-close").addEventListener("click", async () => {
+document.getElementById("side-panel-close").addEventListener("click", () => {
   if (isQuickEditActive()) {
-    await saveQuickEditIfActive(async () => {
-      showStatus("Saved.");
-      await refreshAfterEdit();
-    });
+    cancelQuickEdit();
   }
   sidePanel.classList.add("hidden");
   requestAnimationFrame(refitTree);

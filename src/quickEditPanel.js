@@ -35,6 +35,13 @@ export function isQuickEditActive() {
   return isActive;
 }
 
+// Discards any in-progress quick-edit changes and returns the panel to view
+// mode. Used when the panel is closed without hitting Submit.
+export function cancelQuickEdit() {
+  if (!isActive) return;
+  backToView();
+}
+
 export function openQuickEdit(person, onSaved) {
   currentPersonId = person.id;
   currentPersonData = person.data || {};
@@ -68,16 +75,6 @@ export function openQuickEdit(person, onSaved) {
     e.preventDefault();
     await save(onSaved);
   };
-}
-
-// Called when the user closes the side panel while quick-edit is active —
-// saves first (silently, without disrupting the close), same as clicking
-// Submit. Safe to do here because unlike "Add Person", a required field
-// (first name) is essentially guaranteed to already be filled in for an
-// existing person, and we're never touching relationships in this form.
-export async function saveQuickEditIfActive(onSaved) {
-  if (!isActive) return;
-  await save(onSaved);
 }
 
 function backToView() {

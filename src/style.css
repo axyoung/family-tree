@@ -403,6 +403,32 @@ body {
   display: none;
 }
 
+.side-panel-relationships {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #333;
+}
+.side-panel-relationship-row {
+  margin: 6px 0;
+  font-size: 13px;
+  color: #ccc;
+}
+.side-panel-relationship-row strong {
+  color: #eee;
+}
+.relationship-link {
+  background: none;
+  border: none;
+  color: #7fbfa4;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  text-decoration: underline;
+}
+.relationship-link:hover {
+  color: #a3d9c0;
+}
+
 .side-panel-edit-btn {
   position: absolute;
   top: 12px;
