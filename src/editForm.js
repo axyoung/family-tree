@@ -64,11 +64,16 @@ export function openEditForm({ mode, person = null, peopleList = [], onSubmitted
   relationRows = [];
 
   titleEl.textContent = mode === "add" ? "Add Person" : `Edit ${person?.data?.["first name"] || "Person"}`;
-  relationSection.classList.toggle("hidden", mode !== "add");
   deleteBtn.classList.toggle("hidden", mode !== "update");
 
   if (mode === "add") {
     relationRows = [{ type: "spouse", personId: "" }];
+  } else {
+    // pre-fill with existing spouses so they show as already-selected;
+    // resubmitting is harmless (idempotent on the server), and removing a
+    // row here just means "don't add this one" — it won't unlink an
+    // existing spouse (that still requires a direct DB edit for now)
+    relationRows = (currentPersonRels.spouses || []).map((id) => ({ type: "spouse", personId: id }));
   }
   renderRelationRows();
   populateParentDropdowns(peopleList, currentPersonId);
@@ -340,8 +345,7 @@ async function handleSubmit(onSubmitted) {
 
     const rels = currentMode === "add" ? { spouses: [], children: [], parents: [] } : currentPersonRels;
 
-    const relations =
-      currentMode === "add" ? relationRows.filter((r) => r.personId).map((r) => ({ type: r.type, person_id: r.personId })) : null;
+    const relations = relationRows.filter((r) => r.personId).map((r) => ({ type: r.type, person_id: r.personId }));
 
     submitBtn.textContent = "Submitting…";
 

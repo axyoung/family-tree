@@ -162,8 +162,8 @@ async function init() {
 
   f3Chart = f3.createChart("#FamilyChart", buildTreeData(currentLineageMode));
   f3Chart
-    .setAncestryDepth(20)
-    .setProgenyDepth(20)
+    .setAncestryDepth(50)
+    .setProgenyDepth(50)
     .setShowSiblingsOfMain(true)
     .setSingleParentEmptyCard(false); // don't auto-insert placeholder "Unknown" spouse cards
 
@@ -214,6 +214,12 @@ async function init() {
     // person, revealing their relatives) AND open our detail side panel.
     f3Card.onCardClickDefault(e, d);
     openSidePanel(d.data?.id);
+    // Wait a frame so the panel's width change has actually reflowed the
+    // tree container before re-fitting — fitting immediately would still
+    // measure the OLD (wider) width.
+    requestAnimationFrame(() => {
+      f3Chart.updateTree({ tree_position: "fit" });
+    });
   });
 
   f3Chart.updateMainId(findRootPersonId());
@@ -244,8 +250,10 @@ document.getElementById("jump-to-person").addEventListener("change", (e) => {
   const id = e.target.value;
   if (!id) return;
   f3Chart.updateMainId(id);
-  f3Chart.updateTree({ tree_position: "fit" });
   openSidePanel(id);
+  requestAnimationFrame(() => {
+    f3Chart.updateTree({ tree_position: "fit" });
+  });
   e.target.value = "";
 });
 
@@ -292,6 +300,36 @@ function openSidePanel(personId) {
 
 document.getElementById("side-panel-close").addEventListener("click", () => {
   sidePanel.classList.add("hidden");
+});
+
+// --- Resizable side panel ---
+const savedWidth = localStorage.getItem("family-tree-panel-width");
+if (savedWidth) sidePanel.style.width = `${savedWidth}px`;
+
+const resizeHandle = document.getElementById("side-panel-resize-handle");
+let isResizing = false;
+
+resizeHandle.addEventListener("mousedown", (e) => {
+  isResizing = true;
+  resizeHandle.classList.add("dragging");
+  e.preventDefault();
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (!isResizing) return;
+  const newWidth = Math.min(
+    Math.max(window.innerWidth - e.clientX, 280),
+    window.innerWidth * 0.85
+  );
+  sidePanel.style.width = `${newWidth}px`;
+});
+
+window.addEventListener("mouseup", () => {
+  if (!isResizing) return;
+  isResizing = false;
+  resizeHandle.classList.remove("dragging");
+  localStorage.setItem("family-tree-panel-width", parseInt(sidePanel.style.width, 10));
+  f3Chart.updateTree({ tree_position: "fit" }); // re-fit the tree to the new space
 });
 
 // ---------------------------------------------------------------------------

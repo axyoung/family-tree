@@ -345,6 +345,7 @@ body {
 .side-panel {
   width: 650px;
   max-width: 55vw;
+  min-width: 280px;
   flex-shrink: 0;
   background: #1e2023;
   color: #eee;
@@ -352,6 +353,19 @@ body {
   overflow-y: auto;
   border-left: 1px solid #333;
   position: relative;
+}
+.side-panel-resize-handle {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+.side-panel-resize-handle:hover,
+.side-panel-resize-handle.dragging {
+  background: rgba(127, 191, 164, 0.3);
 }
 .side-panel.hidden {
   display: none;
@@ -384,6 +398,8 @@ body {
 #side-panel-title {
   margin: 0 0 4px 0;
   color: #fff;
+  font-size: 30px;
+  font-weight: 700;
 }
 .side-panel-meta {
   margin: 2px 0;
