@@ -272,6 +272,8 @@ function openSidePanel(personId) {
   const person = familyData.find((p) => p.id === personId)?.data;
   if (!person) return;
 
+  document.getElementById("edit-modal")?.classList.add("hidden");
+
   if (person.avatar) {
     sidePanelAvatar.src = person.avatar;
     sidePanelAvatar.classList.remove("hidden");
@@ -298,39 +300,56 @@ function openSidePanel(personId) {
   sidePanel.classList.remove("hidden");
 }
 
+function refitTree() {
+  if (f3Chart) f3Chart.updateTree({ tree_position: "fit" });
+}
+
 document.getElementById("side-panel-close").addEventListener("click", () => {
   sidePanel.classList.add("hidden");
+  requestAnimationFrame(refitTree);
 });
 
-// --- Resizable side panel ---
+// The edit form (editForm.js) dispatches this when it closes, so we can
+// refit the tree once that panel's space is actually freed up.
+window.addEventListener("family-tree:layout-changed", () => {
+  requestAnimationFrame(refitTree);
+});
+
+// --- Resizable panels (both the view panel and the edit panel share the
+// same remembered width, since only one is ever shown at a time) ---
 const savedWidth = localStorage.getItem("family-tree-panel-width");
-if (savedWidth) sidePanel.style.width = `${savedWidth}px`;
+function applySavedWidth(panelEl) {
+  if (savedWidth) panelEl.style.width = `${savedWidth}px`;
+}
+applySavedWidth(sidePanel);
+applySavedWidth(document.getElementById("edit-modal"));
 
-const resizeHandle = document.getElementById("side-panel-resize-handle");
-let isResizing = false;
+function setupResizeHandle(handleEl, panelEl) {
+  let isResizing = false;
 
-resizeHandle.addEventListener("mousedown", (e) => {
-  isResizing = true;
-  resizeHandle.classList.add("dragging");
-  e.preventDefault();
-});
+  handleEl.addEventListener("mousedown", (e) => {
+    isResizing = true;
+    handleEl.classList.add("dragging");
+    e.preventDefault();
+  });
 
-window.addEventListener("mousemove", (e) => {
-  if (!isResizing) return;
-  const newWidth = Math.min(
-    Math.max(window.innerWidth - e.clientX, 280),
-    window.innerWidth * 0.85
-  );
-  sidePanel.style.width = `${newWidth}px`;
-});
+  window.addEventListener("mousemove", (e) => {
+    if (!isResizing) return;
+    const newWidth = Math.min(Math.max(window.innerWidth - e.clientX, 280), window.innerWidth * 0.85);
+    panelEl.style.width = `${newWidth}px`;
+  });
 
-window.addEventListener("mouseup", () => {
-  if (!isResizing) return;
-  isResizing = false;
-  resizeHandle.classList.remove("dragging");
-  localStorage.setItem("family-tree-panel-width", parseInt(sidePanel.style.width, 10));
-  f3Chart.updateTree({ tree_position: "fit" }); // re-fit the tree to the new space
-});
+  window.addEventListener("mouseup", () => {
+    if (!isResizing) return;
+    isResizing = false;
+    handleEl.classList.remove("dragging");
+    localStorage.setItem("family-tree-panel-width", parseInt(panelEl.style.width, 10));
+    refitTree();
+  });
+}
+
+setupResizeHandle(document.getElementById("side-panel-resize-handle"), sidePanel);
+setupResizeHandle(document.getElementById("edit-modal-resize-handle"), document.getElementById("edit-modal"));
 
 // ---------------------------------------------------------------------------
 // 5. LINEAGE TOGGLE BUTTON WIRING

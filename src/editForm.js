@@ -97,7 +97,9 @@ export function openEditForm({ mode, person = null, peopleList = [], onSubmitted
   renderStagedPhotos();
   renderExistingAvatar();
 
+  document.getElementById("side-panel")?.classList.add("hidden");
   modal.classList.remove("hidden");
+  window.dispatchEvent(new Event("family-tree:layout-changed"));
 
   form.onsubmit = async (e) => {
     e.preventDefault();
@@ -284,12 +286,12 @@ photosInput.addEventListener("change", () => {
   renderStagedPhotos();
 });
 
-document.getElementById("edit-close").addEventListener("click", () => {
+function closeEditPanel() {
   modal.classList.add("hidden");
-});
-modal.addEventListener("click", (e) => {
-  if (e.target === modal) modal.classList.add("hidden");
-});
+  window.dispatchEvent(new Event("family-tree:layout-changed"));
+}
+
+document.getElementById("edit-close").addEventListener("click", closeEditPanel);
 
 function slugify(str) {
   return (
@@ -366,7 +368,7 @@ async function handleSubmit(onSubmitted) {
       await deletePhotos(photosToDeleteFromStorage);
     }
 
-    modal.classList.add("hidden");
+    closeEditPanel();
     onSubmitted?.();
   } catch (err) {
     alert(`Something went wrong: ${err.message}`);
@@ -400,7 +402,7 @@ async function handleDelete(onDeleted) {
       return;
     }
 
-    modal.classList.add("hidden");
+    closeEditPanel();
     onDeleted?.();
   } finally {
     deleteBtn.disabled = false;

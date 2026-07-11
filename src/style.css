@@ -221,7 +221,7 @@ body {
 
 /* --- Multi-relation rows in the add-person form --- */
 .lineage-parent-fields {
-  background: #f0f4f2;
+  background: #2a2d31;
   padding: 12px;
   border-radius: 8px;
 }
@@ -234,11 +234,13 @@ body {
   flex: 1;
   padding: 6px 8px;
   border-radius: 6px;
-  border: 1px solid #ccc;
+  border: 1px solid #444;
+  background: #1e2023;
+  color: #eee;
 }
 
 .relation-fields-section {
-  background: #f7f5f2;
+  background: #2a2d31;
   padding: 12px;
   border-radius: 8px;
 }
@@ -246,11 +248,11 @@ body {
   margin: 0 0 8px 0;
   font-size: 12px;
   font-weight: 600;
-  color: #666;
+  color: #aaa;
 }
 .no-relations-note {
   font-size: 13px;
-  color: #888;
+  color: #999;
   margin: 0 0 8px 0;
 }
 .relation-row {
@@ -261,7 +263,7 @@ body {
 .relation-row-label {
   padding: 6px 8px;
   font-size: 13px;
-  color: #555;
+  color: #ccc;
   white-space: nowrap;
 }
 
@@ -269,13 +271,16 @@ body {
   flex: 1;
   padding: 6px 8px;
   border-radius: 6px;
-  border: 1px solid #ccc;
+  border: 1px solid #444;
+  background: #1e2023;
+  color: #eee;
 }
 .relation-row .remove-relation-btn {
   padding: 4px 10px;
   border-radius: 6px;
-  border: 1px solid #ccc;
-  background: #fff;
+  border: 1px solid #555;
+  background: #2a2d31;
+  color: #ccc;
   cursor: pointer;
   font-size: 12px;
 }
@@ -283,8 +288,8 @@ body {
   padding: 6px 12px;
   border-radius: 6px;
   border: 1px solid #3b6e5b;
-  background: #eef5f1;
-  color: #3b6e5b;
+  background: #24382f;
+  color: #7fbfa4;
   cursor: pointer;
   font-size: 13px;
 }
@@ -305,40 +310,6 @@ body {
 }
 .delete-btn:hover {
   background: #fbeaea;
-}
-.modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-.modal.hidden {
-  display: none;
-}
-
-.modal-content {
-  background: #fff;
-  border-radius: 12px;
-  padding: 24px;
-  max-width: 90vw;
-  width: 700px;
-  max-height: 85vh;
-  overflow-y: auto;
-  position: relative;
-}
-
-.modal-close {
-  position: absolute;
-  top: 12px;
-  right: 16px;
-  font-size: 24px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  line-height: 1;
 }
 
 /* --- Person detail side panel — docked flex sidebar, not an overlay --- */
@@ -395,7 +366,8 @@ body {
   display: none;
 }
 
-#side-panel-title {
+#side-panel-title,
+#edit-modal-title {
   margin: 0 0 4px 0;
   color: #fff;
   font-size: 30px;
@@ -491,6 +463,10 @@ body {
 /* card-edit-btn styling lives near the card-inner rules above */
 
 /* --- Edit / Add person form --- */
+#edit-modal-title {
+  margin-bottom: 20px;
+}
+
 .field-hint {
   font-size: 11px;
   font-weight: normal;
@@ -508,7 +484,7 @@ body {
   gap: 4px;
   font-size: 13px;
   font-weight: 600;
-  color: #444;
+  color: #ccc;
 }
 #edit-form input[type="text"],
 #edit-form input[type="email"],
@@ -517,10 +493,12 @@ body {
 #edit-form textarea {
   font-weight: normal;
   padding: 8px 10px;
-  border: 1px solid #ccc;
+  border: 1px solid #444;
   border-radius: 6px;
   font-size: 14px;
   font-family: inherit;
+  background: #2a2d31;
+  color: #eee;
 }
 
 .relation-fields {
@@ -563,14 +541,20 @@ body {
   font-size: 11px;
   padding: 3px 5px;
   margin-top: 4px;
-  border: 1px solid #ccc;
+  border: 1px solid #444;
   border-radius: 4px;
+  background: #1e2023;
+  color: #eee;
 }
 .existing-photo .remove-photo-btn {
   width: 100%;
   font-size: 10px;
   margin-top: 2px;
   cursor: pointer;
+  background: #2a2d31;
+  color: #ccc;
+  border: 1px solid #444;
+  border-radius: 4px;
 }
 
 .staged-photo {
@@ -579,14 +563,19 @@ body {
   gap: 4px;
   width: 140px;
   font-size: 11px;
-  background: #fafafa;
-  border: 1px solid #ddd;
+  color: #ccc;
+  background: #2a2d31;
+  border: 1px solid #444;
   border-radius: 6px;
   padding: 6px;
 }
 .staged-caption-input {
   font-size: 11px;
   padding: 4px 6px;
+  background: #1e2023;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 4px;
 }
 
 #edit-submit-btn {

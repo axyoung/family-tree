@@ -58,13 +58,12 @@
         <div id="side-panel-desc" class="side-panel-desc"></div>
         <div class="gallery-scroll" id="side-panel-photos"></div>
       </div>
-    </div>
 
-    <!-- Add / Edit person modal -->
-    <div id="edit-modal" class="modal hidden">
-      <div class="modal-content">
-        <button id="edit-close" class="modal-close">&times;</button>
-        <h2 id="edit-modal-title">Edit Person</h2>
+      <!-- Add / Edit person panel — same docked style as the description panel -->
+      <div id="edit-modal" class="side-panel hidden">
+        <div id="edit-modal-resize-handle" class="side-panel-resize-handle"></div>
+        <button id="edit-close" class="side-panel-close">&times;</button>
+        <h2 id="edit-modal-title"></h2>
         <form id="edit-form">
           <div class="lineage-parent-fields">
             <p class="relation-fields-label">Biological parent(s) — up to 2, for the lineage toggle</p>
@@ -121,7 +120,6 @@
           </div>
         </form>
       </div>
-
     </div>
   </div>
 
