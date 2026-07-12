@@ -307,26 +307,27 @@ function computeRelationships(personId) {
 
   const toPeople = (ids) => [...ids].map((id) => byId.get(id)).filter(Boolean);
 
-  // Biological/adoptive parents and children, computed from BOTH modes
-  // (not just the currently active one) so both always show regardless
-  // of which toggle is selected — using the same source of truth the
-  // tree itself renders from, not the raw data fields directly.
-  const bioTree = currentLineageMode === "bio" ? treeData : buildTreeData("bio");
-  const adoptiveTree = currentLineageMode === "adoptive" ? treeData : buildTreeData("adoptive");
-  const bioById = new Map(bioTree.map((p) => [p.id, p]));
-  const adoptiveById = new Map(adoptiveTree.map((p) => [p.id, p]));
-
-  const bioParentIds = bioById.get(personId)?.rels.parents || [];
-  const adoptiveParentIds = adoptiveById.get(personId)?.rels.parents || [];
-  const childrenIds = bioTree.filter((p) => (p.rels.parents || []).includes(personId)).map((p) => p.id);
-  const adoptedChildrenIds = adoptiveTree.filter((p) => (p.rels.parents || []).includes(personId)).map((p) => p.id);
+  // Biological/adoptive parents and children — read directly from the raw
+  // parents_bio/parents_adoptive fields, NOT from buildTreeData's output.
+  // buildTreeData intentionally falls back to bio parents under adoptive
+  // mode when someone has no real adoptive parents set (so the tree still
+  // renders them somewhere) — but that fallback isn't a real adoptive
+  // relationship, so using it here would incorrectly count ordinary
+  // biological parents/children as "adoptive."
+  const rawPerson = familyData.find((p) => p.id === personId);
+  const bioParentIds = rawPerson?.data.parents_bio || [];
+  const adoptiveParentIds = rawPerson?.data.parents_adoptive || [];
+  const childrenIds = familyData.filter((p) => (p.data.parents_bio || []).includes(personId)).map((p) => p.id);
+  const adoptedChildrenIds = familyData
+    .filter((p) => (p.data.parents_adoptive || []).includes(personId))
+    .map((p) => p.id);
 
   return {
-    bioParents: bioParentIds.map((id) => bioById.get(id)).filter(Boolean),
-    adoptiveParents: adoptiveParentIds.map((id) => adoptiveById.get(id)).filter(Boolean),
+    bioParents: toPeople(bioParentIds),
+    adoptiveParents: toPeople(adoptiveParentIds),
     spouses: toPeople(spouseIds),
-    children: childrenIds.map((id) => bioById.get(id)).filter(Boolean),
-    adoptedChildren: adoptedChildrenIds.map((id) => adoptiveById.get(id)).filter(Boolean),
+    children: toPeople(childrenIds),
+    adoptedChildren: toPeople(adoptedChildrenIds),
     siblings: toPeople(siblingIds),
     stepSiblings: toPeople(stepSiblingIds),
   };
