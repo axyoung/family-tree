@@ -127,11 +127,41 @@ function buildTreeData(mode) {
   return clones;
 }
 
+// Every actual tree render should go through this instead of calling
+// f3Chart.updateTree() directly, so hidden-placeholder connector lines
+// stay suppressed (the library redraws ALL links with opacity:1 on every
+// update, so we have to re-hide the relevant ones each time).
+function treeUpdate(props) {
+  f3Chart.updateTree(props);
+  scheduleHideLinksToHiddenPeople();
+}
+
+let hideLinksTimeoutId = null;
+function scheduleHideLinksToHiddenPeople() {
+  clearTimeout(hideLinksTimeoutId);
+  // Wait past the library's transition duration (2000ms default) so our
+  // change isn't immediately overwritten by the in-progress animation.
+  hideLinksTimeoutId = setTimeout(hideLinksToHiddenPeople, 2100);
+}
+
+function hideLinksToHiddenPeople() {
+  const hiddenIds = new Set(familyData.filter((p) => p.data.hidden).map((p) => p.id));
+  if (!hiddenIds.size) return;
+
+  document.querySelectorAll("#FamilyChart path.link").forEach((pathEl) => {
+    const datum = pathEl.__data__; // D3-bound data; id is "tid1, tid2" sorted
+    if (!datum?.id) return;
+    const endpoints = datum.id.split(", ").map((tid) => tid.split("--x")[0]);
+    const connectsHidden = endpoints.some((id) => hiddenIds.has(id));
+    pathEl.style.display = connectsHidden ? "none" : "";
+  });
+}
+
 function rerenderTree() {
   const data = buildTreeData(currentLineageMode);
   validateTreeData(data);
   f3Chart.updateData(data);
-  f3Chart.updateTree({ initial: true });
+  treeUpdate({ initial: true });
 }
 
 // Logs exactly which person and which parents are conflicting, since the
@@ -177,6 +207,18 @@ async function init() {
     .setCardInnerHtmlCreator((d) => {
       const person = d.data?.data || {};
       const identity = person.gender_identity || "";
+
+      if (person.hidden) {
+        // Fully invisible to regular viewers — exists only to structurally
+        // link siblings when the real parent is unknown. In edit mode, show
+        // a faint marker so editors can still find/manage it.
+        return editModeEnabled
+          ? `<div class="card-inner card-hidden-editor">
+               <span>Hidden placeholder</span>
+               <button class="card-edit-btn" data-person-id="${d.data?.id}">✏️</button>
+             </div>`
+          : `<div class="card-inner card-hidden-placeholder"></div>`;
+      }
 
       const lifespan = person.birthday || person.date_of_death
         ? `${person.birthday || "?"}${person.date_of_death ? ` – ${person.date_of_death}` : ""}`
@@ -224,13 +266,13 @@ async function init() {
     // tree container before re-fitting — fitting immediately would still
     // measure the OLD (wider) width.
     requestAnimationFrame(() => {
-      f3Chart.updateTree({ tree_position: "fit" });
+      treeUpdate({ tree_position: "fit" });
     });
   });
 
   f3Chart.updateMainId(findRootPersonId());
   validateTreeData(buildTreeData(currentLineageMode));
-  f3Chart.updateTree({ initial: true, tree_position: "fit" });
+  treeUpdate({ initial: true, tree_position: "fit" });
 
   populateJumpToPerson();
 }
@@ -253,7 +295,7 @@ document.getElementById("jump-to-person").addEventListener("change", (e) => {
   f3Chart.updateMainId(id);
   openSidePanel(id);
   requestAnimationFrame(() => {
-    f3Chart.updateTree({ tree_position: "fit" });
+    treeUpdate({ tree_position: "fit" });
   });
   e.target.value = "";
 });
@@ -396,7 +438,7 @@ function openSidePanel(personId) {
       const id = btn.dataset.personId;
       f3Chart.updateMainId(id);
       openSidePanel(id);
-      requestAnimationFrame(() => f3Chart.updateTree({ tree_position: "fit" }));
+      requestAnimationFrame(() => treeUpdate({ tree_position: "fit" }));
     });
   });
 
@@ -415,7 +457,7 @@ sidePanelEditBtn.addEventListener("click", () => {
 });
 
 function refitTree() {
-  if (f3Chart) f3Chart.updateTree({ tree_position: "fit" });
+  if (f3Chart) treeUpdate({ tree_position: "fit" });
 }
 
 document.getElementById("side-panel-close").addEventListener("click", () => {
@@ -483,7 +525,7 @@ function switchLineageMode(mode) {
 
 document.getElementById("btn-reset-view").addEventListener("click", () => {
   f3Chart.updateMainId(findRootPersonId());
-  f3Chart.updateTree({ tree_position: "fit" });
+  treeUpdate({ tree_position: "fit" });
 });
 
 // ---------------------------------------------------------------------------

@@ -112,6 +112,34 @@ body {
 }
 
 /* --- Custom card contents --- */
+.card-hidden-placeholder {
+  visibility: hidden;
+}
+.card-hidden-editor {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+  border: 1px dashed #666;
+  border-radius: 8px;
+  color: #999;
+  font-size: 11px;
+  font-style: italic;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: #aaa;
+  font-weight: normal;
+}
+.checkbox-label input[type="checkbox"] {
+  margin-top: 2px;
+}
+
 .card-inner {
   display: flex;
   align-items: center;

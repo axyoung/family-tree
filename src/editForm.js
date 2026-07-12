@@ -28,6 +28,7 @@ const stagedPhotosEl = document.getElementById("staged-photos");
 const avatarInput = document.getElementById("field-avatar");
 const existingAvatarEl = document.getElementById("existing-avatar");
 const submittedByInput = document.getElementById("field-submitted-by");
+const hiddenCheckbox = document.getElementById("field-hidden");
 const submitBtn = document.getElementById("edit-submit-btn");
 const deleteBtn = document.getElementById("edit-delete-btn");
 
@@ -102,6 +103,7 @@ export function openEditForm({ mode, person = null, peopleList = [], onSubmitted
   identityInput.value = currentPersonData.gender_identity || "";
   descriptionInput.value = currentPersonData.description || "";
   submittedByInput.value = "";
+  hiddenCheckbox.checked = !!currentPersonData.hidden;
 
   renderExistingPhotos();
   renderStagedPhotos();
@@ -370,6 +372,7 @@ async function handleSubmit(onSubmitted) {
       photos: [...existingPhotos, ...newlyUploaded],
       parents_bio: parentsBio,
       parents_adoptive: parentsAdoptive,
+      hidden: hiddenCheckbox.checked,
     };
 
     const rels = currentMode === "add" ? { spouses: [], children: [], parents: [] } : currentPersonRels;
