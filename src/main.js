@@ -127,34 +127,15 @@ function buildTreeData(mode) {
   return clones;
 }
 
-// Every actual tree render should go through this instead of calling
-// f3Chart.updateTree() directly, so hidden-placeholder connector lines
-// stay suppressed (the library redraws ALL links with opacity:1 on every
-// update, so we have to re-hide the relevant ones each time).
+// Thin wrapper kept for a single call-site convention across the file.
+// (Connector-line hiding to placeholder people was tried and removed —
+// each child has its own independent line running to the shared parent
+// point rather than a separate sibling-to-sibling line, so hiding the
+// "stem" without also hiding the sibling connection isn't achievable
+// without reconstructing the path geometry ourselves. Per instruction,
+// lines are left visible; only the placeholder's own card is invisible.)
 function treeUpdate(props) {
   f3Chart.updateTree(props);
-  scheduleHideLinksToHiddenPeople();
-}
-
-let hideLinksTimeoutId = null;
-function scheduleHideLinksToHiddenPeople() {
-  clearTimeout(hideLinksTimeoutId);
-  // Wait past the library's transition duration (2000ms default) so our
-  // change isn't immediately overwritten by the in-progress animation.
-  hideLinksTimeoutId = setTimeout(hideLinksToHiddenPeople, 2100);
-}
-
-function hideLinksToHiddenPeople() {
-  const hiddenIds = new Set(familyData.filter((p) => p.data.hidden).map((p) => p.id));
-  if (!hiddenIds.size) return;
-
-  document.querySelectorAll("#FamilyChart path.link").forEach((pathEl) => {
-    const datum = pathEl.__data__; // D3-bound data; id is "tid1, tid2" sorted
-    if (!datum?.id) return;
-    const endpoints = datum.id.split(", ").map((tid) => tid.split("--x")[0]);
-    const connectsHidden = endpoints.some((id) => hiddenIds.has(id));
-    pathEl.style.display = connectsHidden ? "none" : "";
-  });
 }
 
 function rerenderTree() {
