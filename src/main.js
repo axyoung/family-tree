@@ -315,13 +315,18 @@ function computeRelationships(personId) {
   const spouseIds = person.rels.spouses || [];
 
   const siblingIds = new Set();
+  const siblingStylePetIds = new Set(); // pets who share a parent (would be a sibling if not a pet)
   treeData.forEach((p) => {
     if (p.id === personId) return;
-    if ((p.rels.parents || []).some((pid) => parentIds.includes(pid))) siblingIds.add(p.id);
+    if (!(p.rels.parents || []).some((pid) => parentIds.includes(pid))) return;
+    if (p.data.is_pet) siblingStylePetIds.add(p.id);
+    else siblingIds.add(p.id);
   });
 
   // Step-siblings: children of one of this person's parent's OTHER spouses
-  // (a step-parent), who aren't already a full/half sibling.
+  // (a step-parent), who aren't already a full/half sibling. Pets found
+  // this way are treated the same as above — routed to "pets", not listed
+  // as a step-sibling.
   const stepParentIds = new Set();
   parentIds.forEach((pid) => {
     (byId.get(pid)?.rels.spouses || []).forEach((sid) => {
@@ -331,7 +336,9 @@ function computeRelationships(personId) {
   const stepSiblingIds = new Set();
   stepParentIds.forEach((spid) => {
     (byId.get(spid)?.rels.children || []).forEach((cid) => {
-      if (cid !== personId && !siblingIds.has(cid)) stepSiblingIds.add(cid);
+      if (cid === personId || siblingIds.has(cid) || siblingStylePetIds.has(cid)) return;
+      if (byId.get(cid)?.data.is_pet) siblingStylePetIds.add(cid);
+      else stepSiblingIds.add(cid);
     });
   });
 
@@ -358,7 +365,8 @@ function computeRelationships(personId) {
   const adoptedChildrenIds = familyData
     .filter((p) => !isPet(p) && (p.data.parents_adoptive || []).includes(personId))
     .map((p) => p.id);
-  const petIds = familyData.filter((p) => isPet(p) && linkedAsChild(p)).map((p) => p.id);
+  const directPetIds = familyData.filter((p) => isPet(p) && linkedAsChild(p)).map((p) => p.id);
+  const petIds = new Set([...directPetIds, ...siblingStylePetIds]);
 
   return {
     bioParents: toPeople(bioParentIds),
