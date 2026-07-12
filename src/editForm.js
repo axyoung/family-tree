@@ -29,6 +29,7 @@ const avatarInput = document.getElementById("field-avatar");
 const existingAvatarEl = document.getElementById("existing-avatar");
 const submittedByInput = document.getElementById("field-submitted-by");
 const hiddenCheckbox = document.getElementById("field-hidden");
+const isPetCheckbox = document.getElementById("field-is-pet");
 const submitBtn = document.getElementById("edit-submit-btn");
 const deleteBtn = document.getElementById("edit-delete-btn");
 
@@ -104,6 +105,7 @@ export function openEditForm({ mode, person = null, peopleList = [], onSubmitted
   descriptionInput.value = currentPersonData.description || "";
   submittedByInput.value = "";
   hiddenCheckbox.checked = !!currentPersonData.hidden;
+  isPetCheckbox.checked = !!currentPersonData.is_pet;
 
   renderExistingPhotos();
   renderStagedPhotos();
@@ -373,6 +375,7 @@ async function handleSubmit(onSubmitted) {
       parents_bio: parentsBio,
       parents_adoptive: parentsAdoptive,
       hidden: hiddenCheckbox.checked,
+      is_pet: isPetCheckbox.checked,
     };
 
     const rels = currentMode === "add" ? { spouses: [], children: [], parents: [] } : currentPersonRels;

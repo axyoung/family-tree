@@ -102,7 +102,14 @@ function buildTreeData(mode) {
     const adoptive = person.data.parents_adoptive;
     if (!bio?.length && !adoptive?.length) return;
 
-    const active = mode === "adoptive" && adoptive?.length ? adoptive : bio || [];
+    // Family pets aren't part of the bio/adoptive lineage concept — always
+    // show their recorded connection in both toggle modes, using whichever
+    // field was actually filled in.
+    const active = person.data.is_pet
+      ? (bio?.length ? bio : adoptive || [])
+      : mode === "adoptive" && adoptive?.length
+      ? adoptive
+      : bio || [];
     const allMentionedParentIds = new Set([...(bio || []), ...(adoptive || [])]);
 
     allMentionedParentIds.forEach((parentId) => {
@@ -302,7 +309,7 @@ function computeRelationships(personId) {
   const treeData = buildTreeData(currentLineageMode);
   const byId = new Map(treeData.map((p) => [p.id, p]));
   const person = byId.get(personId);
-  if (!person) return { parents: [], spouses: [], siblings: [], stepSiblings: [] };
+  if (!person) return { bioParents: [], adoptiveParents: [], spouses: [], children: [], adoptedChildren: [], pets: [], siblings: [], stepSiblings: [] };
 
   const parentIds = person.rels.parents || [];
   const spouseIds = person.rels.spouses || [];
@@ -340,10 +347,18 @@ function computeRelationships(personId) {
   const rawPerson = familyData.find((p) => p.id === personId);
   const bioParentIds = rawPerson?.data.parents_bio || [];
   const adoptiveParentIds = rawPerson?.data.parents_adoptive || [];
-  const childrenIds = familyData.filter((p) => (p.data.parents_bio || []).includes(personId)).map((p) => p.id);
-  const adoptedChildrenIds = familyData
-    .filter((p) => (p.data.parents_adoptive || []).includes(personId))
+
+  const isPet = (p) => !!p.data.is_pet;
+  const linkedAsChild = (p) =>
+    (p.data.parents_bio || []).includes(personId) || (p.data.parents_adoptive || []).includes(personId);
+
+  const childrenIds = familyData
+    .filter((p) => !isPet(p) && (p.data.parents_bio || []).includes(personId))
     .map((p) => p.id);
+  const adoptedChildrenIds = familyData
+    .filter((p) => !isPet(p) && (p.data.parents_adoptive || []).includes(personId))
+    .map((p) => p.id);
+  const petIds = familyData.filter((p) => isPet(p) && linkedAsChild(p)).map((p) => p.id);
 
   return {
     bioParents: toPeople(bioParentIds),
@@ -351,6 +366,7 @@ function computeRelationships(personId) {
     spouses: toPeople(spouseIds),
     children: toPeople(childrenIds),
     adoptedChildren: toPeople(adoptedChildrenIds),
+    pets: toPeople(petIds),
     siblings: toPeople(siblingIds),
     stepSiblings: toPeople(stepSiblingIds),
   };
@@ -404,13 +420,16 @@ function openSidePanel(personId) {
     .join("");
 
   const rel = computeRelationships(personId);
+  const bioParentLabel = rel.adoptiveParents.length ? "Biological parents" : "Parents";
+
   const relationshipsEl = document.getElementById("side-panel-relationships");
   relationshipsEl.innerHTML =
-    renderRelationshipsList("Biological parents", rel.bioParents) +
+    renderRelationshipsList(bioParentLabel, rel.bioParents) +
     renderRelationshipsList("Adoptive parents", rel.adoptiveParents) +
     renderRelationshipsList("Spouse(s)", rel.spouses) +
     renderRelationshipsList("Children", rel.children) +
     renderRelationshipsList("Adopted children", rel.adoptedChildren) +
+    renderRelationshipsList("Family pet(s)", rel.pets) +
     renderRelationshipsList("Siblings", rel.siblings) +
     renderRelationshipsList("Step-siblings", rel.stepSiblings);
 

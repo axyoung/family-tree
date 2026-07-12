@@ -115,6 +115,10 @@ body {
 .card-hidden-placeholder {
   visibility: hidden;
 }
+.card:has(.card-hidden-placeholder) .mini-tree,
+.card:has(.card-hidden-editor) .mini-tree {
+  display: none;
+}
 .card-hidden-editor {
   display: flex;
   align-items: center;
