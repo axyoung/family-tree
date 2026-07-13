@@ -105,11 +105,14 @@ function buildTreeData(mode) {
     // Family pets aren't part of the bio/adoptive lineage concept — always
     // show their recorded connection in both toggle modes, using whichever
     // field was actually filled in.
-    const active = person.data.is_pet
-      ? (bio?.length ? bio : adoptive || [])
-      : mode === "adoptive" && adoptive?.length
-      ? adoptive
-      : bio || [];
+    let active;
+    if (person.data.is_pet) {
+      active = bio?.length ? bio : adoptive || [];
+    } else if (mode === "adoptive" && adoptive?.length) {
+      active = adoptive;
+    } else {
+      active = bio || [];
+    }
     const allMentionedParentIds = new Set([...(bio || []), ...(adoptive || [])]);
 
     allMentionedParentIds.forEach((parentId) => {
@@ -428,18 +431,36 @@ function openSidePanel(personId) {
     .join("");
 
   const rel = computeRelationships(personId);
-  const bioParentLabel = rel.adoptiveParents.length ? "Biological parents" : "Parents";
-
   const relationshipsEl = document.getElementById("side-panel-relationships");
-  relationshipsEl.innerHTML =
-    renderRelationshipsList(bioParentLabel, rel.bioParents) +
-    renderRelationshipsList("Adoptive parents", rel.adoptiveParents) +
-    renderRelationshipsList("Spouse(s)", rel.spouses) +
-    renderRelationshipsList("Children", rel.children) +
-    renderRelationshipsList("Adopted children", rel.adoptedChildren) +
-    renderRelationshipsList("Family pet(s)", rel.pets) +
-    renderRelationshipsList("Siblings", rel.siblings) +
-    renderRelationshipsList("Step-siblings", rel.stepSiblings);
+
+  if (person.is_pet) {
+    // A pet doesn't really have "parents" or "siblings" — just family.
+    const familyIds = new Set();
+    const family = [];
+    [...rel.bioParents, ...rel.adoptiveParents, ...rel.siblings, ...rel.stepSiblings].forEach((p) => {
+      if (familyIds.has(p.id)) return;
+      familyIds.add(p.id);
+      family.push(p);
+    });
+
+    relationshipsEl.innerHTML =
+      renderRelationshipsList("Family", family) +
+      renderRelationshipsList("Spouse(s)", rel.spouses) +
+      renderRelationshipsList("Children", rel.children) +
+      renderRelationshipsList("Adopted children", rel.adoptedChildren) +
+      renderRelationshipsList("Family pet(s)", rel.pets);
+  } else {
+    const bioParentLabel = rel.adoptiveParents.length ? "Biological parents" : "Parents";
+    relationshipsEl.innerHTML =
+      renderRelationshipsList(bioParentLabel, rel.bioParents) +
+      renderRelationshipsList("Adoptive parents", rel.adoptiveParents) +
+      renderRelationshipsList("Spouse(s)", rel.spouses) +
+      renderRelationshipsList("Children", rel.children) +
+      renderRelationshipsList("Adopted children", rel.adoptedChildren) +
+      renderRelationshipsList("Family pet(s)", rel.pets) +
+      renderRelationshipsList("Siblings", rel.siblings) +
+      renderRelationshipsList("Step-siblings", rel.stepSiblings);
+  }
 
   relationshipsEl.querySelectorAll(".relationship-link").forEach((btn) => {
     btn.addEventListener("click", () => {

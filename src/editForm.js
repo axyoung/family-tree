@@ -1,6 +1,6 @@
-import { uploadPhotos, deletePhotos } from "./photoUpload.js";
 import { submitPendingEdit } from "./editSession.js";
 import { formatFullName } from "./nameUtils.js";
+import { createPhotoFieldsController } from "./photoFieldsController.js";
 
 const modal = document.getElementById("edit-modal");
 const form = document.getElementById("edit-form");
@@ -39,13 +39,17 @@ let currentPersonId = null;
 let currentPersonData = null;
 let currentPersonRels = null;
 let originalSpouseIds = []; // spouses at form-open time, to diff against on submit
-let existingPhotos = [];
-let stagedFiles = [];
-let existingAvatarUrl = null;
-let stagedAvatarFile = null;
-let photosToDeleteFromStorage = []; // existing photo/avatar objects removed this session
 let peopleListRef = [];
 let relationRows = []; // [{ type: 'spouse', personId: string }]
+
+const photoFields = createPhotoFieldsController({
+  idPrefix: "",
+  existingPhotosEl,
+  stagedPhotosEl,
+  existingAvatarEl,
+  avatarInput,
+  photosInput,
+});
 
 /**
  * Opens the FULL edit/add panel (parents, spouse, delete — everything).
@@ -65,11 +69,6 @@ export function openEditForm({ mode, person = null, peopleList = [], onSubmitted
   currentPersonId = person?.id || null;
   currentPersonData = person?.data || {};
   currentPersonRels = person?.rels || { spouses: [], children: [], parents: [] };
-  existingPhotos = person?.data?.photos ? [...person.data.photos] : [];
-  stagedFiles = [];
-  existingAvatarUrl = person?.data?.avatar || null;
-  stagedAvatarFile = null;
-  photosToDeleteFromStorage = [];
   peopleListRef = peopleList;
   relationRows = [];
 
@@ -107,9 +106,7 @@ export function openEditForm({ mode, person = null, peopleList = [], onSubmitted
   hiddenCheckbox.checked = !!currentPersonData.hidden;
   isPetCheckbox.checked = !!currentPersonData.is_pet;
 
-  renderExistingPhotos();
-  renderStagedPhotos();
-  renderExistingAvatar();
+  photoFields.reset(currentPersonData);
 
   document.getElementById("side-panel")?.classList.add("hidden");
   modal.classList.remove("hidden");
@@ -204,115 +201,6 @@ addRelationRowBtn.addEventListener("click", () => {
   renderRelationRows();
 });
 
-// ---------------------------------------------------------------------------
-// Photos / avatar
-// ---------------------------------------------------------------------------
-function renderExistingPhotos() {
-  existingPhotosEl.innerHTML = existingPhotos
-    .map(
-      (photo, i) => `
-        <div class="existing-photo">
-          <img src="${photo.url}" alt="${photo.caption || ""}" />
-          <input type="text" class="existing-caption-input" name="existing-caption-${i}" placeholder="Caption" data-index="${i}" value="${photo.caption || ""}" />
-          <button type="button" class="remove-photo-btn" data-index="${i}">Remove</button>
-        </div>
-      `
-    )
-    .join("");
-
-  existingPhotosEl.querySelectorAll(".existing-caption-input").forEach((input) => {
-    input.addEventListener("input", () => {
-      existingPhotos[Number(input.dataset.index)].caption = input.value;
-    });
-  });
-
-  existingPhotosEl.querySelectorAll(".remove-photo-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const [removed] = existingPhotos.splice(Number(btn.dataset.index), 1);
-      if (removed) photosToDeleteFromStorage.push(removed);
-      renderExistingPhotos();
-    });
-  });
-}
-
-function renderStagedPhotos() {
-  stagedPhotosEl.innerHTML = stagedFiles
-    .map(
-      (item, i) => `
-        <div class="staged-photo">
-          <span>${item.file.name}</span>
-          <input type="text" placeholder="Caption" name="staged-caption-${i}" data-index="${i}" class="staged-caption-input" value="${item.caption}" />
-          <button type="button" class="remove-staged-btn" data-index="${i}">Remove</button>
-        </div>
-      `
-    )
-    .join("");
-
-  stagedPhotosEl.querySelectorAll(".staged-caption-input").forEach((input) => {
-    input.addEventListener("input", () => {
-      stagedFiles[Number(input.dataset.index)].caption = input.value;
-    });
-  });
-
-  stagedPhotosEl.querySelectorAll(".remove-staged-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      stagedFiles.splice(Number(btn.dataset.index), 1);
-      renderStagedPhotos();
-    });
-  });
-}
-
-function renderExistingAvatar() {
-  if (stagedAvatarFile) {
-    const previewUrl = URL.createObjectURL(stagedAvatarFile);
-    existingAvatarEl.innerHTML = `
-      <div class="existing-photo">
-        <img src="${previewUrl}" alt="" />
-        <button type="button" id="remove-staged-avatar-btn">Undo</button>
-      </div>
-    `;
-    document.getElementById("remove-staged-avatar-btn").addEventListener("click", () => {
-      stagedAvatarFile = null;
-      renderExistingAvatar();
-    });
-    return;
-  }
-
-  if (existingAvatarUrl) {
-    existingAvatarEl.innerHTML = `
-      <div class="existing-photo">
-        <img src="${existingAvatarUrl}" alt="" />
-        <button type="button" id="remove-avatar-btn">Remove</button>
-      </div>
-    `;
-    document.getElementById("remove-avatar-btn").addEventListener("click", () => {
-      photosToDeleteFromStorage.push({ url: existingAvatarUrl });
-      existingAvatarUrl = null;
-      renderExistingAvatar();
-    });
-    return;
-  }
-
-  existingAvatarEl.innerHTML = "";
-}
-
-avatarInput.addEventListener("change", () => {
-  if (avatarInput.files[0]) {
-    if (existingAvatarUrl) photosToDeleteFromStorage.push({ url: existingAvatarUrl });
-    stagedAvatarFile = avatarInput.files[0];
-    existingAvatarUrl = null;
-    avatarInput.value = "";
-    renderExistingAvatar();
-  }
-});
-
-photosInput.addEventListener("change", () => {
-  const newFiles = Array.from(photosInput.files).map((file) => ({ file, caption: "" }));
-  stagedFiles.push(...newFiles);
-  photosInput.value = "";
-  renderStagedPhotos();
-});
-
 function closeEditPanel() {
   modal.classList.add("hidden");
   window.dispatchEvent(new Event("family-tree:layout-changed"));
@@ -342,18 +230,9 @@ async function handleSubmit(onSubmitted) {
         ? slugify(`${firstNameInput.value}-${lastNameInput.value}-${Date.now()}`)
         : currentPersonId;
 
-    let newlyUploaded = [];
-    if (stagedFiles.length) {
-      submitBtn.textContent = "Uploading photos…";
-      newlyUploaded = await uploadPhotos(personId, stagedFiles);
-    }
-
-    let avatarUrl = existingAvatarUrl;
-    if (stagedAvatarFile) {
-      submitBtn.textContent = "Uploading avatar…";
-      const [uploaded] = await uploadPhotos(personId, [{ file: stagedAvatarFile, caption: "" }]);
-      avatarUrl = uploaded.url;
-    }
+    const { avatar, photos } = await photoFields.commit(personId, (msg) => {
+      submitBtn.textContent = msg;
+    });
 
     const parentsBio = [bioParent1Sel.value, bioParent2Sel.value].filter(Boolean);
     const parentsAdoptive = [adoptiveParent1Sel.value, adoptiveParent2Sel.value].filter(Boolean);
@@ -370,8 +249,8 @@ async function handleSubmit(onSubmitted) {
       gender: genderSelect.value,
       gender_identity: identityInput.value.trim(),
       description: descriptionInput.value.trim(),
-      avatar: avatarUrl || "",
-      photos: [...existingPhotos, ...newlyUploaded],
+      avatar,
+      photos,
       parents_bio: parentsBio,
       parents_adoptive: parentsAdoptive,
       hidden: hiddenCheckbox.checked,
@@ -404,9 +283,7 @@ async function handleSubmit(onSubmitted) {
       return;
     }
 
-    if (photosToDeleteFromStorage.length) {
-      await deletePhotos(photosToDeleteFromStorage);
-    }
+    await photoFields.cleanupDeletedPhotos();
 
     closeEditPanel();
     onSubmitted?.();

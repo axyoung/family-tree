@@ -1,5 +1,5 @@
-import { uploadPhotos, deletePhotos } from "./photoUpload.js";
 import { submitPendingEdit } from "./editSession.js";
+import { createPhotoFieldsController } from "./photoFieldsController.js";
 
 const panelView = document.getElementById("panel-view");
 const panelQuickEdit = document.getElementById("panel-quick-edit");
@@ -24,12 +24,16 @@ const submitBtn = document.getElementById("qe-submit-btn");
 let currentPersonId = null;
 let currentPersonData = null;
 let currentPersonRels = null; // preserved untouched — quick edit never changes relationships
-let existingPhotos = [];
-let stagedFiles = [];
-let existingAvatarUrl = null;
-let stagedAvatarFile = null;
-let photosToDeleteFromStorage = [];
 let isActive = false;
+
+const photoFields = createPhotoFieldsController({
+  idPrefix: "qe-",
+  existingPhotosEl,
+  stagedPhotosEl,
+  existingAvatarEl,
+  avatarInput,
+  photosInput,
+});
 
 export function isQuickEditActive() {
   return isActive;
@@ -46,11 +50,6 @@ export function openQuickEdit(person, onSaved) {
   currentPersonId = person.id;
   currentPersonData = person.data || {};
   currentPersonRels = person.rels || { spouses: [], children: [], parents: [] };
-  existingPhotos = currentPersonData.photos ? [...currentPersonData.photos] : [];
-  stagedFiles = [];
-  existingAvatarUrl = currentPersonData.avatar || null;
-  stagedAvatarFile = null;
-  photosToDeleteFromStorage = [];
 
   firstNameInput.value = currentPersonData["first name"] || "";
   middleNameInput.value = currentPersonData["middle name"] || "";
@@ -63,9 +62,7 @@ export function openQuickEdit(person, onSaved) {
   descriptionInput.value = currentPersonData.description || "";
   submittedByInput.value = "";
 
-  renderExistingPhotos();
-  renderStagedPhotos();
-  renderExistingAvatar();
+  photoFields.reset(currentPersonData);
 
   panelView.classList.add("hidden");
   panelQuickEdit.classList.remove("hidden");
@@ -83,127 +80,12 @@ function backToView() {
   isActive = false;
 }
 
-function renderExistingPhotos() {
-  existingPhotosEl.innerHTML = existingPhotos
-    .map(
-      (photo, i) => `
-        <div class="existing-photo">
-          <img src="${photo.url}" alt="${photo.caption || ""}" />
-          <input type="text" class="existing-caption-input" name="qe-existing-caption-${i}" placeholder="Caption" data-index="${i}" value="${photo.caption || ""}" />
-          <button type="button" class="remove-photo-btn" data-index="${i}">Remove</button>
-        </div>
-      `
-    )
-    .join("");
-
-  existingPhotosEl.querySelectorAll(".existing-caption-input").forEach((input) => {
-    input.addEventListener("input", () => {
-      existingPhotos[Number(input.dataset.index)].caption = input.value;
-    });
-  });
-
-  existingPhotosEl.querySelectorAll(".remove-photo-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const [removed] = existingPhotos.splice(Number(btn.dataset.index), 1);
-      if (removed) photosToDeleteFromStorage.push(removed);
-      renderExistingPhotos();
-    });
-  });
-}
-
-function renderStagedPhotos() {
-  stagedPhotosEl.innerHTML = stagedFiles
-    .map(
-      (item, i) => `
-        <div class="staged-photo">
-          <span>${item.file.name}</span>
-          <input type="text" placeholder="Caption" name="qe-staged-caption-${i}" data-index="${i}" class="staged-caption-input" value="${item.caption}" />
-          <button type="button" class="remove-staged-btn" data-index="${i}">Remove</button>
-        </div>
-      `
-    )
-    .join("");
-
-  stagedPhotosEl.querySelectorAll(".staged-caption-input").forEach((input) => {
-    input.addEventListener("input", () => {
-      stagedFiles[Number(input.dataset.index)].caption = input.value;
-    });
-  });
-
-  stagedPhotosEl.querySelectorAll(".remove-staged-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      stagedFiles.splice(Number(btn.dataset.index), 1);
-      renderStagedPhotos();
-    });
-  });
-}
-
-function renderExistingAvatar() {
-  if (stagedAvatarFile) {
-    const previewUrl = URL.createObjectURL(stagedAvatarFile);
-    existingAvatarEl.innerHTML = `
-      <div class="existing-photo">
-        <img src="${previewUrl}" alt="" />
-        <button type="button" id="qe-remove-staged-avatar-btn">Undo</button>
-      </div>
-    `;
-    document.getElementById("qe-remove-staged-avatar-btn").addEventListener("click", () => {
-      stagedAvatarFile = null;
-      renderExistingAvatar();
-    });
-    return;
-  }
-
-  if (existingAvatarUrl) {
-    existingAvatarEl.innerHTML = `
-      <div class="existing-photo">
-        <img src="${existingAvatarUrl}" alt="" />
-        <button type="button" id="qe-remove-avatar-btn">Remove</button>
-      </div>
-    `;
-    document.getElementById("qe-remove-avatar-btn").addEventListener("click", () => {
-      photosToDeleteFromStorage.push({ url: existingAvatarUrl });
-      existingAvatarUrl = null;
-      renderExistingAvatar();
-    });
-    return;
-  }
-
-  existingAvatarEl.innerHTML = "";
-}
-
-avatarInput.addEventListener("change", () => {
-  if (avatarInput.files[0]) {
-    if (existingAvatarUrl) photosToDeleteFromStorage.push({ url: existingAvatarUrl });
-    stagedAvatarFile = avatarInput.files[0];
-    existingAvatarUrl = null;
-    avatarInput.value = "";
-    renderExistingAvatar();
-  }
-});
-
-photosInput.addEventListener("change", () => {
-  const newFiles = Array.from(photosInput.files).map((file) => ({ file, caption: "" }));
-  stagedFiles.push(...newFiles);
-  photosInput.value = "";
-  renderStagedPhotos();
-});
-
 async function save(onSaved) {
   submitBtn.disabled = true;
   try {
-    let newlyUploaded = [];
-    if (stagedFiles.length) {
-      submitBtn.textContent = "Uploading photos…";
-      newlyUploaded = await uploadPhotos(currentPersonId, stagedFiles);
-    }
-
-    let avatarUrl = existingAvatarUrl;
-    if (stagedAvatarFile) {
-      submitBtn.textContent = "Uploading avatar…";
-      const [uploaded] = await uploadPhotos(currentPersonId, [{ file: stagedAvatarFile, caption: "" }]);
-      avatarUrl = uploaded.url;
-    }
+    const { avatar, photos } = await photoFields.commit(currentPersonId, (msg) => {
+      submitBtn.textContent = msg;
+    });
 
     // Spread over the ORIGINAL data so parents_bio/parents_adoptive and
     // anything else this form doesn't touch are preserved untouched.
@@ -218,8 +100,8 @@ async function save(onSaved) {
       date_of_death: dateOfDeathInput.value.trim(),
       gender_identity: identityInput.value.trim(),
       description: descriptionInput.value.trim(),
-      avatar: avatarUrl || "",
-      photos: [...existingPhotos, ...newlyUploaded],
+      avatar,
+      photos,
     };
 
     submitBtn.textContent = "Submitting…";
@@ -238,9 +120,7 @@ async function save(onSaved) {
       return;
     }
 
-    if (photosToDeleteFromStorage.length) {
-      await deletePhotos(photosToDeleteFromStorage);
-    }
+    await photoFields.cleanupDeletedPhotos();
 
     backToView();
     onSaved?.();
