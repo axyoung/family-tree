@@ -1,10 +1,8 @@
-# 🌳 Young/Shan Family Registry & Tree
+# 🌳 Family Registry & Tree
 
-An interactive and secure digital archive and lineage tracker built specifically for the **Young/Shan** family. This application serves as a living registry to preserve our shared history, document generations, and provide an interactive visual experience of our family tree.
+An interactive and secure digital archive and lineage tracker built as a side-project. This application serves as a living registry to preserve a family's shared history, document generations, and provide an interactive visual experience of our family tree.
 
 Built with performance, privacy, and seamless interactivity in mind, the platform allows authorized family members to explore their heritage and securely contribute updates to the lineage.
-
-The Family Tree website itself is currently hosted on the site: https://family-tree-two-mauve.vercel.app/.
 
 ---
 
@@ -111,7 +109,7 @@ Ensure you have the following installed on your local environment:
 ## 🛡️ Privacy & Governance
 
 Because this registry contains living individuals and private family data, all contributors must respect the following security practices:
-* Never share login credentials outside verified members of the **Young/Shan** family.
+* Never share login credentials outside verified members of the family.
 * Ensure written or verbal consent is acquired before uploading sensitive documents or private contact information.
 * Report any unexpected data discrepancies or public exposure to the repository administrator immediately.
 
