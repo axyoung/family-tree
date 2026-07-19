@@ -580,6 +580,19 @@ end;
 $$;
 grant execute on function scrub_dangling_refs to authenticated;
 
+-- ---------------------------------------------------------------------------
+-- 11. KEEP-ALIVE PING (no auth required, exposes nothing)
+-- ---------------------------------------------------------------------------
+-- Purely so a scheduled ping (e.g. Vercel Cron) can touch the database and
+-- prevent Supabase's free-tier auto-pause after a period of inactivity.
+create or replace function keepalive_ping()
+returns text
+language sql
+as $$
+  select 'ok';
+$$;
+grant execute on function keepalive_ping to anon;
+
 -- ===========================================================================
 -- NEXT STEPS (do these in the Supabase dashboard, not this SQL file):
 --
